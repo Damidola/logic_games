@@ -8,8 +8,10 @@ let currentPlayer = 'white'; // 'white' or 'black'
 let selectedPiece = null; // { row, col, element, isKing }
 let mustCapture = false; // Flag indicating if a capture is mandatory
 let availableCaptures = []; // Array of possible capture sequences
-let previousBoardState = null; // Store the state before the last move
-let previousCurrentPlayer = null;
+let previousPlayerBoardState = null;
+let previousPlayerCurrentPlayer = null;
+let previousComputerBoardState = null;
+let previousComputerCurrentPlayer = null;
 let turnInProgress = false; // Flag to manage state saving only once per turn
 
 // --- Game Mode ---
@@ -230,6 +232,13 @@ function handlePieceClick(event) {
         const canPieceCapture = availableCaptures.some(capture => capture.startRow === row && capture.startCol === col);
         if (!canPieceCapture) {
             console.log("Mandatory capture: You must select a piece that can capture.");
+            return;
+        }
+    } else {
+        // Check if this piece has any valid moves before allowing selection
+        const possibleMoves = calculateValidMoves(row, col, pieceData.isKing);
+        if (possibleMoves.length === 0) {
+            console.log("This piece has no valid moves.");
             return;
         }
     }
@@ -775,24 +784,33 @@ function findAllPossibleMoves(player) {
 
 // --- Function to save current state ---
 function saveState() {
-    previousBoardState = JSON.parse(JSON.stringify(boardState)); // Deep copy
-    previousCurrentPlayer = currentPlayer;
+    // If the current player is white (human player's turn)
+    if (currentPlayer === 'white') {
+        previousPlayerBoardState = JSON.parse(JSON.stringify(boardState)); // Deep copy
+        previousPlayerCurrentPlayer = currentPlayer;
+    } 
+    // If the current player is black (AI's turn)
+    else if (currentPlayer === 'black') {
+        previousComputerBoardState = JSON.parse(JSON.stringify(boardState)); // Deep copy
+        previousComputerCurrentPlayer = currentPlayer;
+    }
 }
 
 // --- Function to restore previous state ---
 function restorePreviousState() {
-    if (!previousBoardState) {
+    // We want to restore to the state before the human player made their move
+    if (!previousPlayerBoardState) {
         console.log("No previous state to restore.");
         return;
     }
 
-    // Restore player
-    currentPlayer = previousCurrentPlayer;
+    // Restore player to white (human player)
+    currentPlayer = 'white';
 
     // Restore board state (deep copy back)
     for (let r = 0; r < ROWS; r++) {
         for (let c = 0; c < COLS; c++) {
-            boardState[r][c] = previousBoardState[r][c] ? { ...previousBoardState[r][c] } : null;
+            boardState[r][c] = previousPlayerBoardState[r][c] ? { ...previousPlayerBoardState[r][c] } : null;
         }
     }
 
@@ -807,12 +825,17 @@ function restorePreviousState() {
     // Recalculate mandatory captures for the restored state
     updateMandatoryCaptureStatus();
 
-    console.log("Restored previous state.");
-    // Clear the saved state so undo can only happen once per turn
-    previousBoardState = null;
-    previousCurrentPlayer = null;
-     // Re-enable board interaction if it was disabled by win condition
+    console.log("Restored previous state to before human player's move.");
+    
+    // Clear the saved states
+    previousPlayerBoardState = null;
+    previousPlayerCurrentPlayer = null;
+    previousComputerBoardState = null;
+    previousComputerCurrentPlayer = null;
+    
+    // Re-enable board interaction if it was disabled by win condition
     boardElement.style.pointerEvents = 'auto';
+    document.getElementById('undo-btn').disabled = false;
 }
 
 // --- Function to redraw the entire board based on boardState --- 
@@ -859,8 +882,13 @@ function resetGame() {
     selectedPiece = null;
     mustCapture = false;
     availableCaptures = [];
-    previousBoardState = null;
-    previousCurrentPlayer = null;
+    
+    // Reset state storage variables
+    previousPlayerBoardState = null;
+    previousPlayerCurrentPlayer = null;
+    previousComputerBoardState = null;
+    previousComputerCurrentPlayer = null;
+    
     boardState.length = 0; // Clear the state array
     turnInProgress = false;
     aiThinking = false;

@@ -1,23 +1,30 @@
-Put your HTML text here<!DOCTYPE html>
-<html lang="en">
+<!DOCTYPE html>
+<html lang="uk">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Chessers Game</title>
+    <title>Гра "Чешки"</title>
     <style>
         body {
-            font-family: sans-serif;
+            font-family: 'Roboto', 'Segoe UI', sans-serif;
             display: flex;
             justify-content: center;
             align-items: center;
             min-height: 100vh;
-            background-color: #f0f0f0;
-            flex-direction: column; /* Center board and status */
+            background-color: #2c3e50;
+            flex-direction: column;
+            color: #ecf0f1;
+            margin: 0;
+            padding: 0;
         }
         #game-container {
             display: flex;
             flex-direction: column;
             align-items: center;
+            background-color: rgba(44, 62, 80, 0.7);
+            padding: 25px;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
         }
         #board {
             display: grid;
@@ -25,7 +32,10 @@ Put your HTML text here<!DOCTYPE html>
             grid-template-rows: repeat(8, 60px);
             width: 480px;
             height: 480px;
-            border: 2px solid #333;
+            border: 3px solid #34495e;
+            border-radius: 5px;
+            overflow: hidden;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
         }
         .square {
             width: 60px;
@@ -34,94 +44,122 @@ Put your HTML text here<!DOCTYPE html>
             justify-content: center;
             align-items: center;
             font-size: 36px;
-            position: relative; /* For labels */
-            box-sizing: border-box; /* Include border in size */
+            position: relative;
+            box-sizing: border-box;
+            transition: background-color 0.2s ease;
         }
-        .square.white-sq { background-color: #f0d9b5; }
-        .square.black-sq { background-color: #b58863; }
+        .square.white-sq { background-color: #63b5ca; }
+        .square.black-sq { background-color: #1b3647; }
 
         /* Coordinate Labels */
-        .square::before { /* File labels (a-h) on rank 1 */
+        .square::before {
             content: attr(data-file);
             position: absolute;
             bottom: 2px;
             right: 2px;
             font-size: 10px;
-            color: #fff;
-            text-shadow: 1px 1px 1px #000;
-            pointer-events: none; /* Don't interfere with clicks */
+            color: #2c3e50;
+            font-weight: bold;
+            pointer-events: none;
         }
-        .square::after { /* Rank labels (1-8) on file A */
+        .square::after {
              content: attr(data-rank);
             position: absolute;
             top: 2px;
             left: 2px;
             font-size: 10px;
-            color: #fff;
-            text-shadow: 1px 1px 1px #000;
-            pointer-events: none; /* Don't interfere with clicks */
+            color: #2c3e50;
+            font-weight: bold;
+            pointer-events: none;
         }
-        .square[data-col="0"]::after { /* Only show rank on file A */
-             display: block;
-        }
-         .square[data-row="7"]::before { /* Only show file on rank 1 (index 7) */
-             display: block;
-         }
-         .square:not([data-col="0"])::after,
-         .square:not([data-row="7"])::before {
-             display: none;
-         }
+        .square[data-col="0"]::after { display: block; }
+        .square[data-row="7"]::before { display: block; }
+        .square:not([data-col="0"])::after,
+        .square:not([data-row="7"])::before { display: none; }
 
+        .square.white-sq::before, .square.white-sq::after { 
+            color: #3498db; 
+            text-shadow: none;
+        }
+        .square.black-sq::before, .square.black-sq::after { 
+            color: #90b8c2; 
+            text-shadow: none;
+        }
 
         .piece {
             cursor: pointer;
-            user-select: none; /* Prevent text selection */
+            user-select: none;
+            font-size: 42px;
+            transition: transform 0.2s ease;
         }
-        .white-piece { color: #ffffff; text-shadow: 0 0 3px black; }
-        .black-piece { color: #000000; text-shadow: 0 0 3px white;}
+        .piece:hover {
+            transform: scale(1.1);
+        }
+        .white-piece { color: #ffffffc0; text-shadow: 0 0 4px #2c3e50; }
+        .black-piece { color: #2c3e50; text-shadow: 0 0 4px #ffffff; }
 
         .selected {
-            background-color: rgba(0, 255, 0, 0.4) !important;
+            background-color: rgba(46, 204, 113, 0.6) !important;
         }
         .possible-move {
-            background-color: rgba(100, 180, 255, 0.6) !important;
+            background-color: rgba(52, 152, 219, 0.6) !important;
             cursor: pointer;
         }
         .possible-capture {
-             background-color: rgba(255, 80, 80, 0.7) !important;
+             background-color: rgba(231, 76, 60, 0.7) !important;
              cursor: pointer;
         }
         .check {
-             /* Subtle background pulse for checked king */
              animation: pulse-red 1.5s infinite;
         }
 
         @keyframes pulse-red {
-            0% { background-color: inherit; } /* Start with original square color */
-            50% { background-color: rgba(255, 0, 0, 0.5); }
-            100% { background-color: inherit; } /* Return to original */
+            0% { background-color: inherit; }
+            50% { background-color: rgba(231, 76, 60, 0.7); }
+            100% { background-color: inherit; }
         }
-
 
         #status {
-            margin-top: 20px;
-            font-size: 1.2em;
+            margin: 20px 0;
+            font-size: 1.4em;
             text-align: center;
-            min-height: 50px; /* Prevent layout shift */
+            min-height: 50px;
+            font-weight: bold;
+            color: #ecf0f1;
+            text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.3);
         }
         #reset-button {
-            margin-top: 10px;
-            padding: 10px 15px;
-            font-size: 1em;
+            margin-top: 15px;
+            padding: 12px 24px;
+            font-size: 1.1em;
             cursor: pointer;
+            background-color: #e74c3c;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        #reset-button:hover {
+            background-color: #c0392b;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 8px rgba(0, 0, 0, 0.15);
+        }
+        h1 {
+            color: #ecf0f1;
+            margin-bottom: 20px;
+            text-align: center;
+            font-size: 2.5em;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
         }
     </style>
 </head>
 <body>
+    <h1>Гра "Чешки"</h1>
     <div id="game-container">
-        <div id="status">White's Turn</div>
+        <div id="status">Хід білих</div>
         <div id="board"></div>
-        <button id="reset-button">New Game</button>
+        <button id="reset-button">Нова гра</button>
     </div>
 
     <script>
@@ -668,11 +706,11 @@ Put your HTML text here<!DOCTYPE html>
              const blackKingOnTarget = blackKingPos.row === 7 && blackKingPos.col === 0; // A1
 
              if (whiteKingOnTarget) {
-                 endGame("White wins by reaching the corner!");
+                 endGame("Білі перемогли, досягнувши кута!");
                  return true;
              }
              if (blackKingOnTarget) {
-                 endGame("Black wins by reaching the corner!");
+                 endGame("Чорні перемогли, досягнувши кута!");
                  return true;
              }
 
@@ -682,18 +720,18 @@ Put your HTML text here<!DOCTYPE html>
              if (currentPlayer === 'white') {
                  if (!canWhiteMove) {
                      if (whiteInCheck) {
-                         endGame("Checkmate! Black wins!");
+                         endGame("Мат! Чорні перемогли!");
                      } else {
-                         endGame("Stalemate! It's a draw.");
+                         endGame("Пат! Нічия.");
                      }
                      return true;
                  }
              } else { // currentPlayer is 'black'
                  if (!canBlackMove) {
                      if (blackInCheck) {
-                         endGame("Checkmate! White wins!");
+                         endGame("Мат! Білі перемогли!");
                      } else {
-                         endGame("Stalemate! It's a draw.");
+                         endGame("Пат! Нічия.");
                      }
                      return true;
                  }
@@ -704,7 +742,7 @@ Put your HTML text here<!DOCTYPE html>
 
         function endGame(message) {
             isGameOver = true;
-            statusElement.textContent = `Game Over: ${message}`;
+            statusElement.textContent = `Гра закінчена: ${message}`;
             clearHighlights();
         }
 
@@ -738,11 +776,11 @@ Put your HTML text here<!DOCTYPE html>
         function updateStatusMessage() {
             if (isGameOver) return; // Final message is already set
 
-            let message = `${currentPlayer === 'white' ? 'White' : 'Black'}'s Turn`;
+            let message = `${currentPlayer === 'white' ? 'Хід білих' : 'Хід чорних'}`;
             if (whiteInCheck && currentPlayer === 'white') {
-                message += " (Check!)";
+                message += " (Шах!)";
             } else if (blackInCheck && currentPlayer === 'black') {
-                 message += " (Check!)";
+                 message += " (Шах!)";
             }
             statusElement.textContent = message;
         }

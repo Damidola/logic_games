@@ -1,0 +1,764 @@
+Put your HTML text here<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chessers Game</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background-color: #f0f0f0;
+            flex-direction: column; /* Center board and status */
+        }
+        #game-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        #board {
+            display: grid;
+            grid-template-columns: repeat(8, 60px);
+            grid-template-rows: repeat(8, 60px);
+            width: 480px;
+            height: 480px;
+            border: 2px solid #333;
+        }
+        .square {
+            width: 60px;
+            height: 60px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 36px;
+            position: relative; /* For labels */
+            box-sizing: border-box; /* Include border in size */
+        }
+        .square.white-sq { background-color: #f0d9b5; }
+        .square.black-sq { background-color: #b58863; }
+
+        /* Coordinate Labels */
+        .square::before { /* File labels (a-h) on rank 1 */
+            content: attr(data-file);
+            position: absolute;
+            bottom: 2px;
+            right: 2px;
+            font-size: 10px;
+            color: #fff;
+            text-shadow: 1px 1px 1px #000;
+            pointer-events: none; /* Don't interfere with clicks */
+        }
+        .square::after { /* Rank labels (1-8) on file A */
+             content: attr(data-rank);
+            position: absolute;
+            top: 2px;
+            left: 2px;
+            font-size: 10px;
+            color: #fff;
+            text-shadow: 1px 1px 1px #000;
+            pointer-events: none; /* Don't interfere with clicks */
+        }
+        .square[data-col="0"]::after { /* Only show rank on file A */
+             display: block;
+        }
+         .square[data-row="7"]::before { /* Only show file on rank 1 (index 7) */
+             display: block;
+         }
+         .square:not([data-col="0"])::after,
+         .square:not([data-row="7"])::before {
+             display: none;
+         }
+
+
+        .piece {
+            cursor: pointer;
+            user-select: none; /* Prevent text selection */
+        }
+        .white-piece { color: #ffffff; text-shadow: 0 0 3px black; }
+        .black-piece { color: #000000; text-shadow: 0 0 3px white;}
+
+        .selected {
+            background-color: rgba(0, 255, 0, 0.4) !important;
+        }
+        .possible-move {
+            background-color: rgba(100, 180, 255, 0.6) !important;
+            cursor: pointer;
+        }
+        .possible-capture {
+             background-color: rgba(255, 80, 80, 0.7) !important;
+             cursor: pointer;
+        }
+        .check {
+             /* Subtle background pulse for checked king */
+             animation: pulse-red 1.5s infinite;
+        }
+
+        @keyframes pulse-red {
+            0% { background-color: inherit; } /* Start with original square color */
+            50% { background-color: rgba(255, 0, 0, 0.5); }
+            100% { background-color: inherit; } /* Return to original */
+        }
+
+
+        #status {
+            margin-top: 20px;
+            font-size: 1.2em;
+            text-align: center;
+            min-height: 50px; /* Prevent layout shift */
+        }
+        #reset-button {
+            margin-top: 10px;
+            padding: 10px 15px;
+            font-size: 1em;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <div id="game-container">
+        <div id="status">White's Turn</div>
+        <div id="board"></div>
+        <button id="reset-button">New Game</button>
+    </div>
+
+    <script>
+        const boardElement = document.getElementById('board');
+        const statusElement = document.getElementById('status');
+        const resetButton = document.getElementById('reset-button');
+
+        // Piece Representation (Unicode or simple chars)
+        const PIECES = {
+            white: { king: '♔', circle: '●', triangle: '▲', square: '■' },
+            black: { king: '♚', circle: '●', triangle: '▲', square: '■' }
+            // Using same shapes, color differentiates them via CSS
+        };
+
+        // --- Game State ---
+        let board = []; // 8x8 array, null or { type: 'king', color: 'white' }
+        let currentPlayer = 'white';
+        let selectedPiece = null; // { row, col }
+        let possibleMoves = []; // Array of { row, col, isCapture }
+        let turnCount = 0;
+        let isGameOver = false;
+        let whiteInCheck = false;
+        let blackInCheck = false;
+        let whiteKingPos = { row: -1, col: -1 };
+        let blackKingPos = { row: -1, col: -1 };
+
+        // --- Initialization ---
+        function createBoard() {
+            board = Array(8).fill(null).map(() => Array(8).fill(null));
+
+            // Place White Pieces (Rank 1 is index 7, File A is index 0)
+            board[7][0] = { type: 'king', color: 'white' }; whiteKingPos = {row: 7, col: 0};
+            board[6][0] = { type: 'circle', color: 'white' };
+            board[7][1] = { type: 'circle', color: 'white' };
+            board[5][0] = { type: 'triangle', color: 'white' };
+            board[6][1] = { type: 'triangle', color: 'white' };
+            board[7][2] = { type: 'triangle', color: 'white' };
+            board[4][0] = { type: 'square', color: 'white' };
+            board[5][1] = { type: 'square', color: 'white' };
+            board[6][2] = { type: 'square', color: 'white' };
+            board[7][3] = { type: 'square', color: 'white' };
+
+            // Place Black Pieces (Rank 8 is index 0, File H is index 7)
+            board[0][7] = { type: 'king', color: 'black' }; blackKingPos = {row: 0, col: 7};
+            board[1][7] = { type: 'circle', color: 'black' };
+            board[0][6] = { type: 'circle', color: 'black' };
+            board[2][7] = { type: 'triangle', color: 'black' };
+            board[1][6] = { type: 'triangle', color: 'black' };
+            board[0][5] = { type: 'triangle', color: 'black' };
+            board[3][7] = { type: 'square', color: 'black' };
+            board[2][6] = { type: 'square', color: 'black' };
+            board[1][5] = { type: 'square', color: 'black' };
+            board[0][4] = { type: 'square', color: 'black' };
+
+            // Reset game state variables
+            currentPlayer = 'white';
+            selectedPiece = null;
+            possibleMoves = [];
+            turnCount = 0;
+            isGameOver = false;
+            whiteInCheck = false;
+            blackInCheck = false;
+            updateCheckStatus(); // Initial check status
+        }
+
+        function renderBoard() {
+            boardElement.innerHTML = '';
+            clearHighlights(); // Clear old highlights
+
+            for (let r = 0; r < 8; r++) {
+                for (let c = 0; c < 8; c++) {
+                    const square = document.createElement('div');
+                    square.classList.add('square');
+                    square.classList.add((r + c) % 2 === 0 ? 'white-sq' : 'black-sq');
+                    square.dataset.row = r;
+                    square.dataset.col = c;
+
+                    // Add coordinate labels (adjusting indices for display)
+                    square.setAttribute('data-rank', 8 - r); // Rank 1-8
+                    square.setAttribute('data-file', String.fromCharCode(97 + c)); // File a-h
+
+
+                    const piece = board[r][c];
+                    if (piece) {
+                        const pieceElement = document.createElement('span');
+                        pieceElement.classList.add('piece');
+                        pieceElement.classList.add(`${piece.color}-piece`);
+                        pieceElement.textContent = PIECES[piece.color][piece.type];
+                        square.appendChild(pieceElement);
+
+                         // Add check highlighting directly
+                         if (piece.type === 'king') {
+                            if (piece.color === 'white' && whiteInCheck) {
+                                square.classList.add('check');
+                            } else if (piece.color === 'black' && blackInCheck) {
+                                square.classList.add('check');
+                            }
+                        }
+                    }
+
+                    square.addEventListener('click', () => handleSquareClick(r, c));
+                    boardElement.appendChild(square);
+                }
+            }
+            highlightPossibleMoves(); // Re-apply highlights if a piece is selected
+            updateStatusMessage();
+        }
+
+        // --- Gameplay Logic ---
+
+        function handleSquareClick(row, col) {
+            if (isGameOver) return;
+            if (currentPlayer === 'black') return; // Prevent human from moving black pieces
+
+            const clickedPiece = board[row][col];
+
+            if (selectedPiece) {
+                // Attempting to move or deselect
+                const isValidMove = possibleMoves.find(move => move.row === row && move.col === col);
+
+                if (isValidMove) {
+                    makeMove(selectedPiece.row, selectedPiece.col, row, col);
+                    // Reset selection AFTER move is made
+                    selectedPiece = null;
+                    possibleMoves = [];
+                    clearHighlights();
+                    // Check win/draw after move
+                    if (!checkWinAndDrawConditions()) {
+                         // If game not over, trigger AI turn
+                         currentPlayer = 'black';
+                         updateStatusMessage();
+                         setTimeout(aiMove, 500); // AI moves after a short delay
+                    }
+                } else {
+                     // Clicked invalid square or another friendly piece
+                     selectedPiece = null;
+                     possibleMoves = [];
+                     clearHighlights();
+                     // If clicked a friendly piece, select it instead
+                     if (clickedPiece && clickedPiece.color === currentPlayer) {
+                         selectPiece(row, col);
+                     }
+                }
+
+            } else if (clickedPiece && clickedPiece.color === currentPlayer) {
+                 // Selecting a piece
+                 selectPiece(row, col);
+            }
+        }
+
+         function selectPiece(row, col) {
+            selectedPiece = { row, col };
+            possibleMoves = calculatePossibleMoves(row, col, board[row][col].type, board[row][col].color);
+            // Filter out moves that leave the king in check
+            possibleMoves = possibleMoves.filter(move => !moveLeavesKingInCheck(row, col, move.row, move.col, board[row][col].color));
+            clearHighlights(); // Clear previous
+            highlightPossibleMoves(); // Highlight new ones
+            // Highlight the selected piece itself
+            const selectedSquare = boardElement.querySelector(`.square[data-row="${row}"][data-col="${col}"]`);
+            if(selectedSquare) selectedSquare.classList.add('selected');
+         }
+
+        function makeMove(startRow, startCol, endRow, endCol) {
+            const piece = board[startRow][startCol];
+            const capturedPiece = board[endRow][endCol]; // Could be null
+
+            // Update board state
+            board[endRow][endCol] = piece;
+            board[startRow][startCol] = null;
+
+            // Update King's position if moved
+            if (piece.type === 'king') {
+                if (piece.color === 'white') {
+                    whiteKingPos = { row: endRow, col: endCol };
+                } else {
+                    blackKingPos = { row: endRow, col: endCol };
+                }
+            }
+
+            // Post-move updates
+            turnCount++;
+            updateCheckStatus(); // Update check status *after* the move
+            renderBoard(); // Re-render the board immediately
+        }
+
+        function aiMove() {
+            if (isGameOver || currentPlayer !== 'black') return;
+
+            const allMyPieces = [];
+            for (let r = 0; r < 8; r++) {
+                for (let c = 0; c < 8; c++) {
+                    if (board[r][c] && board[r][c].color === 'black') {
+                        allMyPieces.push({ row: r, col: c, type: board[r][c].type });
+                    }
+                }
+            }
+
+            let allPossibleMoves = [];
+            for (const piece of allMyPieces) {
+                let moves = calculatePossibleMoves(piece.row, piece.col, piece.type, 'black');
+                // Filter out moves that leave the king in check
+                moves = moves.filter(move => !moveLeavesKingInCheck(piece.row, piece.col, move.row, move.col, 'black'));
+                if (moves.length > 0) {
+                    allPossibleMoves.push({ startRow: piece.row, startCol: piece.col, moves: moves });
+                }
+            }
+
+            if (allPossibleMoves.length === 0) {
+                 // AI has no legal moves - check for checkmate/stalemate (should have been caught already, but safety check)
+                 checkWinAndDrawConditions();
+                 return;
+            }
+
+            // --- Simple Random AI ---
+            // Choose a random piece that has moves
+            const pieceToMove = allPossibleMoves[Math.floor(Math.random() * allPossibleMoves.length)];
+            // Choose a random move for that piece
+            const move = pieceToMove.moves[Math.floor(Math.random() * pieceToMove.moves.length)];
+
+            // Make the chosen move
+            makeMove(pieceToMove.startRow, pieceToMove.startCol, move.row, move.col);
+
+            // Check win/draw after AI move
+            if (!checkWinAndDrawConditions()) {
+                currentPlayer = 'white'; // Switch back to human player
+                updateStatusMessage();
+            }
+        }
+
+
+        // --- Movement & Capture Logic ---
+
+        function calculatePossibleMoves(row, col, type, color) {
+            let moves = [];
+            const opponentColor = (color === 'white') ? 'black' : 'white';
+            const maxMove = (turnCount < 2 && type !== 'king') ? 2 : getMaxRange(type); // First move limit
+
+            // --- Helper to add move if valid ---
+            // 'requiredDistance' is for captures (must be exact max range)
+            // 'isCaptureAttempt' signals if we are checking a capture path
+            function addMoveIfValid(r, c, path, requiredDistance = -1, isCaptureAttempt = false) {
+                if (r < 0 || r > 7 || c < 0 || c > 7) return false; // Off board
+
+                const targetPiece = board[r][c];
+                const isTargetOccupied = targetPiece !== null;
+                const isTargetOpponent = isTargetOccupied && targetPiece.color === opponentColor;
+                const isTargetFriendly = isTargetOccupied && targetPiece.color === color;
+
+                // --- Standard Move (Non-Capture) ---
+                if (!isCaptureAttempt) {
+                     if (!isTargetOccupied) { // Must be empty square
+                        // Check path for obstructions (except King jump)
+                        if (type !== 'king' && isPathBlocked(path, r, c)) return false;
+                        moves.push({ row: r, col: c, isCapture: false });
+                        return true; // Can continue in this direction for sliding pieces
+                     } else {
+                         return false; // Blocked by friendly or opponent (non-capture move)
+                     }
+                }
+                // --- Capture Move ---
+                else {
+                    if (isTargetOpponent) { // Must land on opponent
+                        const dist = Math.max(Math.abs(r - row), Math.abs(c - col)); // Diagonal/Rank/File distance
+                        const diagDist = (Math.abs(r - row) + Math.abs(c - col)) / 2 ; // Only correct for pure diagonals
+                        const actualDist = (type === 'triangle') ? Math.abs(r-row) : dist; // Triangles measure distance along axis
+
+                         if(actualDist === requiredDistance) {
+                             // Capture rules allow jumping, no path check needed here
+                             moves.push({ row: r, col: c, isCapture: true });
+                         }
+                    }
+                    // Cannot capture friendly pieces or empty squares this way
+                    return false; // Stop checking further in this direction after hitting any piece for capture
+                }
+            }
+
+            // --- Movement Implementation ---
+
+            switch (type) {
+                case 'square': // Up to 4 ranks/files
+                    const squareMaxRange = getMaxRange('square');
+                     // Check non-capture moves (up to maxMove limit)
+                    for (let dr = -1; dr <= 1; dr++) {
+                         for (let dc = -1; dc <= 1; dc++) {
+                             if (Math.abs(dr) + Math.abs(dc) !== 1) continue; // Only rank/file directions
+                             let path = [{row, col}];
+                             for (let i = 1; i <= maxMove; i++) {
+                                 const nr = row + i * dr;
+                                 const nc = col + i * dc;
+                                 path.push({row: nr, col: nc});
+                                 if (!addMoveIfValid(nr, nc, path, -1, false)) break; // Stop if blocked or off board
+                             }
+                         }
+                     }
+                     // Check capture moves (exactly max range)
+                     for (let dr = -1; dr <= 1; dr++) {
+                         for (let dc = -1; dc <= 1; dc++) {
+                             if (Math.abs(dr) + Math.abs(dc) !== 1) continue; // Only rank/file directions
+                             const nr = row + squareMaxRange * dr;
+                             const nc = col + squareMaxRange * dc;
+                             addMoveIfValid(nr, nc, [], squareMaxRange, true); // Path irrelevant for capture jump
+                         }
+                     }
+                    break;
+
+                case 'triangle': // Up to 3 diagonals
+                    const triangleMaxRange = getMaxRange('triangle');
+                    // Check non-capture moves (up to maxMove limit)
+                    for (let dr = -1; dr <= 1; dr += 2) {
+                         for (let dc = -1; dc <= 1; dc += 2) {
+                              let path = [{row, col}];
+                              for (let i = 1; i <= maxMove; i++) {
+                                 const nr = row + i * dr;
+                                 const nc = col + i * dc;
+                                 path.push({row: nr, col: nc});
+                                 if (!addMoveIfValid(nr, nc, path, -1, false)) break;
+                             }
+                         }
+                     }
+                     // Check capture moves (exactly max range)
+                     for (let dr = -1; dr <= 1; dr += 2) {
+                         for (let dc = -1; dc <= 1; dc += 2) {
+                             const nr = row + triangleMaxRange * dr;
+                             const nc = col + triangleMaxRange * dc;
+                             addMoveIfValid(nr, nc, [], triangleMaxRange, true);
+                         }
+                     }
+                    break;
+
+                case 'circle': // 1 or 2 in any direction
+                    const circleMaxRange = getMaxRange('circle'); // Always 2
+                    // Check non-capture moves (distance 1 or 2, respecting first move limit)
+                    for (let dr = -1; dr <= 1; dr++) {
+                        for (let dc = -1; dc <= 1; dc++) {
+                            if (dr === 0 && dc === 0) continue;
+                            for (let i = 1; i <= maxMove; i++) { // Max distance 1 or 2
+                                 const nr = row + i * dr;
+                                 const nc = col + i * dc;
+                                 if(i > 1 && type === 'circle') { // Check path only for step 2
+                                      let path = [{row,col}, {row: row+dr, col: col+dc}, {row: nr, col: nc}];
+                                      if (!addMoveIfValid(nr, nc, path, -1, false)) break;
+                                 } else if (i === 1) { // No path check for step 1
+                                      let path = [{row, col}, {row: nr, col: nc}];
+                                       if (!addMoveIfValid(nr, nc, path, -1, false)) break;
+                                 }
+                             }
+                        }
+                    }
+                     // Check capture moves (exactly max range = 2)
+                     if (circleMaxRange === 2) {
+                         for (let dr = -1; dr <= 1; dr++) {
+                             for (let dc = -1; dc <= 1; dc++) {
+                                 if (dr === 0 && dc === 0) continue;
+                                 const nr = row + 2 * dr;
+                                 const nc = col + 2 * dc;
+                                 addMoveIfValid(nr, nc, [], 2, true);
+                             }
+                         }
+                     }
+                    break;
+
+                case 'king': // 1 step adjacent OR emergency jump
+                    const isInCheck = (color === 'white' && whiteInCheck) || (color === 'black' && blackInCheck);
+
+                    // Normal 1-step moves
+                    for (let dr = -1; dr <= 1; dr++) {
+                        for (let dc = -1; dc <= 1; dc++) {
+                            if (dr === 0 && dc === 0) continue;
+                            const nr = row + dr;
+                            const nc = col + dc;
+                            if (nr >= 0 && nr < 8 && nc >= 0 && nc < 8) {
+                                const targetPiece = board[nr][nc];
+                                // Cannot move to friendly occupied square
+                                if (!targetPiece || targetPiece.color === opponentColor) {
+                                    // Must check if the target square is attacked
+                                    if (!isSquareAttacked(nr, nc, opponentColor)) {
+                                         moves.push({ row: nr, col: nc, isCapture: targetPiece !== null });
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // Emergency Jump (only if in check)
+                    if (isInCheck) {
+                         for (let dr = -1; dr <= 1; dr++) {
+                            for (let dc = -1; dc <= 1; dc++) {
+                                if (dr === 0 && dc === 0) continue; // Skip self
+                                const adjR = row + dr;
+                                const adjC = col + dc;
+                                const jumpR = row + 2 * dr;
+                                const jumpC = col + 2 * dc;
+
+                                // Check if adjacent and jump squares are on board
+                                if (adjR >= 0 && adjR < 8 && adjC >= 0 && adjC < 8 &&
+                                    jumpR >= 0 && jumpR < 8 && jumpC >= 0 && jumpC < 8)
+                                {
+                                    const adjacentPiece = board[adjR][adjC];
+                                    const jumpSquarePiece = board[jumpR][jumpC];
+
+                                    // Check if adjacent square has a FRIENDLY piece
+                                    if (adjacentPiece && adjacentPiece.color === color) {
+                                         // Check if jump square is EMPTY
+                                         if (!jumpSquarePiece) {
+                                             // Check if jump square is SAFE (not attacked)
+                                             if (!isSquareAttacked(jumpR, jumpC, opponentColor)) {
+                                                 moves.push({ row: jumpR, col: jumpC, isCapture: false });
+                                             }
+                                         }
+                                     }
+                                }
+                            }
+                        }
+                    }
+                    break;
+            }
+
+            return moves;
+        }
+
+        function getMaxRange(type) {
+            switch (type) {
+                case 'square': return 4;
+                case 'triangle': return 3;
+                case 'circle': return 2;
+                case 'king': return 1; // Max range for capture check, normal move is 1
+                default: return 0;
+            }
+        }
+
+        function isPathBlocked(path, targetR, targetC) {
+            // Path includes start and end. Check squares *between* start and end.
+            if (path.length <= 2) return false; // Direct adjacent move or capture jump
+
+            for (let i = 1; i < path.length - 1; i++) {
+                 const step = path[i];
+                 if (board[step.row][step.col] !== null) {
+                     return true; // Blocked
+                 }
+            }
+            return false; // Not blocked
+        }
+
+
+        // --- Check and Checkmate Logic ---
+
+        function isSquareAttacked(row, col, attackerColor) {
+            // Check if any piece of attackerColor can *capture* the square (row, col)
+            for (let r = 0; r < 8; r++) {
+                for (let c = 0; c < 8; c++) {
+                    const piece = board[r][c];
+                    if (piece && piece.color === attackerColor) {
+                        const maxRange = getMaxRange(piece.type);
+                        const dr = Math.abs(r - row);
+                        const dc = Math.abs(c - col);
+
+                        switch (piece.type) {
+                            case 'square':
+                                if ((dr === maxRange && dc === 0) || (dr === 0 && dc === maxRange)) {
+                                    // Check if path allows jumping (for capture only)
+                                    return true; // Capture jumps over anything
+                                }
+                                break;
+                            case 'triangle':
+                                if (dr === maxRange && dc === maxRange && dr > 0) { // Must be diagonal and exact distance
+                                     return true; // Capture jumps over anything
+                                }
+                                break;
+                            case 'circle':
+                                if (maxRange === 2 && (Math.max(dr, dc) === 2)) { // Circle captures at distance 2
+                                    // Need to check if it's exactly 2 steps away in any dir
+                                    if ( (dr === 2 && dc === 0) || (dr === 0 && dc === 2) || // Orthogonal dist 2
+                                         (dr === 2 && dc === 2) ) {                         // Diagonal dist 2
+                                            return true; // Capture jumps over anything
+                                    }
+                                }
+                                break;
+                            case 'king':
+                                // A king attacks adjacent squares for check purposes
+                                if (Math.max(dr, dc) === 1) {
+                                    return true;
+                                }
+                                break;
+                        }
+                    }
+                }
+            }
+            return false;
+        }
+
+        function updateCheckStatus() {
+            whiteInCheck = isSquareAttacked(whiteKingPos.row, whiteKingPos.col, 'black');
+            blackInCheck = isSquareAttacked(blackKingPos.row, blackKingPos.col, 'white');
+        }
+
+        // Simulates a move to see if it leaves the king in check
+        function moveLeavesKingInCheck(startR, startC, endR, endC, color) {
+            const piece = board[startR][startC];
+            const targetPiece = board[endR][endC]; // Store piece at destination
+            let originalKingPos = (color === 'white') ? {...whiteKingPos} : {...blackKingPos};
+
+            // Simulate the move
+            board[endR][endC] = piece;
+            board[startR][startC] = null;
+            if (piece.type === 'king') {
+                 if(color === 'white') whiteKingPos = { row: endR, col: endC };
+                 else blackKingPos = { row: endR, col: endC };
+            }
+
+            // Check for check after simulated move
+            const opponentColor = (color === 'white') ? 'black' : 'white';
+            const kingPos = (color === 'white') ? whiteKingPos : blackKingPos;
+            const leavesInCheck = isSquareAttacked(kingPos.row, kingPos.col, opponentColor);
+
+            // Undo the simulated move
+            board[startR][startC] = piece;
+            board[endR][endC] = targetPiece; // Restore captured piece or null
+            if(color === 'white') whiteKingPos = originalKingPos;
+            else blackKingPos = originalKingPos;
+
+
+            return leavesInCheck;
+        }
+
+        function hasLegalMoves(color) {
+             for (let r = 0; r < 8; r++) {
+                for (let c = 0; c < 8; c++) {
+                    const piece = board[r][c];
+                    if (piece && piece.color === color) {
+                         let moves = calculatePossibleMoves(r, c, piece.type, color);
+                         moves = moves.filter(move => !moveLeavesKingInCheck(r, c, move.row, move.col, color));
+                         if (moves.length > 0) {
+                             return true; // Found at least one legal move
+                         }
+                    }
+                }
+            }
+            return false; // No legal moves found
+        }
+
+        // --- Win/Draw Conditions ---
+        function checkWinAndDrawConditions() {
+             const whiteKingOnTarget = whiteKingPos.row === 0 && whiteKingPos.col === 7; // H8
+             const blackKingOnTarget = blackKingPos.row === 7 && blackKingPos.col === 0; // A1
+
+             if (whiteKingOnTarget) {
+                 endGame("White wins by reaching the corner!");
+                 return true;
+             }
+             if (blackKingOnTarget) {
+                 endGame("Black wins by reaching the corner!");
+                 return true;
+             }
+
+             const canWhiteMove = hasLegalMoves('white');
+             const canBlackMove = hasLegalMoves('black');
+
+             if (currentPlayer === 'white') {
+                 if (!canWhiteMove) {
+                     if (whiteInCheck) {
+                         endGame("Checkmate! Black wins!");
+                     } else {
+                         endGame("Stalemate! It's a draw.");
+                     }
+                     return true;
+                 }
+             } else { // currentPlayer is 'black'
+                 if (!canBlackMove) {
+                     if (blackInCheck) {
+                         endGame("Checkmate! White wins!");
+                     } else {
+                         endGame("Stalemate! It's a draw.");
+                     }
+                     return true;
+                 }
+             }
+
+            return false; // Game continues
+        }
+
+        function endGame(message) {
+            isGameOver = true;
+            statusElement.textContent = `Game Over: ${message}`;
+            clearHighlights();
+        }
+
+        // --- UI Helpers ---
+
+        function clearHighlights() {
+            document.querySelectorAll('.square.selected, .square.possible-move, .square.possible-capture').forEach(sq => {
+                sq.classList.remove('selected', 'possible-move', 'possible-capture');
+            });
+        }
+
+        function highlightPossibleMoves() {
+            if (!selectedPiece) return; // Only highlight if a piece is selected
+
+            possibleMoves.forEach(move => {
+                const square = boardElement.querySelector(`.square[data-row="${move.row}"][data-col="${move.col}"]`);
+                if (square) {
+                     if (move.isCapture) {
+                        square.classList.add('possible-capture');
+                     } else {
+                         square.classList.add('possible-move');
+                     }
+                }
+            });
+
+             // Also re-highlight the selected piece itself
+             const selectedSquare = boardElement.querySelector(`.square[data-row="${selectedPiece.row}"][data-col="${selectedPiece.col}"]`);
+             if(selectedSquare) selectedSquare.classList.add('selected');
+        }
+
+        function updateStatusMessage() {
+            if (isGameOver) return; // Final message is already set
+
+            let message = `${currentPlayer === 'white' ? 'White' : 'Black'}'s Turn`;
+            if (whiteInCheck && currentPlayer === 'white') {
+                message += " (Check!)";
+            } else if (blackInCheck && currentPlayer === 'black') {
+                 message += " (Check!)";
+            }
+            statusElement.textContent = message;
+        }
+
+
+        // --- Event Listeners ---
+        resetButton.addEventListener('click', () => {
+             createBoard();
+             renderBoard();
+        });
+
+
+        // --- Initial Game Setup ---
+        createBoard();
+        renderBoard();
+
+    </script>
+</body>
+</html>

@@ -13,7 +13,6 @@ let previousCurrentPlayer = null;
 let turnInProgress = false; // Flag to manage state saving only once per turn
 
 // --- Game Mode ---
-let playAgainstAI = true; // Set to true to play against AI
 let aiPlayerColor = 'black'; // AI plays as black by default
 let aiThinking = false; // Track when AI is calculating its move
 
@@ -21,7 +20,6 @@ let aiThinking = false; // Track when AI is calculating its move
 function makeAIMove() {
     console.log("AI TURN STARTS");
     aiThinking = true;
-    turnElement.textContent = currentPlayer.charAt(0).toUpperCase() + currentPlayer.slice(1) + ' (AI thinking...)';
     boardElement.style.pointerEvents = 'none'; // Prevent player interaction
     document.getElementById('undo-btn').disabled = true;
     
@@ -394,13 +392,28 @@ function promoteToKing(row, col) {
 }
 
 function switchPlayer() {
+    if (checkWinCondition()) return; // game is over
+    
     currentPlayer = currentPlayer === 'white' ? 'black' : 'white';
-    updateTurnIndicator();
+    console.log("Switching turn to", currentPlayer);
+    
+    // Start a new turn - reset forced piece if any
+    deselectPiece();
+    clearHighlights();
+    clearMandatoryHighlights();
+    
+    // Check for mandatory captures for the new current player
     updateMandatoryCaptureStatus();
     
-    // Trigger AI move if it's AI's turn
-    if (playAgainstAI && currentPlayer === aiPlayerColor && !aiThinking) {
-        setTimeout(makeAIMove, 500); // Small delay before AI move
+    // Check for game over again (no moves for new player)
+    if (checkWinCondition()) return;
+    
+    // End of previous turn, start of new turn
+    turnInProgress = false;
+    
+    // If new player is AI, make AI move
+    if (currentPlayer === aiPlayerColor && !aiThinking) {
+        setTimeout(makeAIMove, 500);
     }
 }
 
@@ -715,7 +728,9 @@ function checkWinCondition() {
         alert(`Game Over! ${winner} wins!`);
         // TODO: Disable further moves or add a reset button
         boardElement.style.pointerEvents = 'none'; // Simple way to stop interaction
+        return true;
     }
+    return false;
 }
 
 function findAllPossibleMoves(player) {
@@ -773,7 +788,6 @@ function restorePreviousState() {
 
     // Restore player
     currentPlayer = previousCurrentPlayer;
-    turnElement.textContent = currentPlayer.charAt(0).toUpperCase() + currentPlayer.slice(1);
 
     // Restore board state (deep copy back)
     for (let r = 0; r < ROWS; r++) {
@@ -842,7 +856,6 @@ function redrawBoardFromState() {
 function resetGame() {
     console.log("Resetting game...");
     currentPlayer = 'white';
-    turnElement.textContent = 'White';
     selectedPiece = null;
     mustCapture = false;
     availableCaptures = [];
@@ -861,7 +874,7 @@ function resetGame() {
     document.getElementById('undo-btn').disabled = false;
 
     // If White is AI, trigger its first move
-    if (playAgainstAI && currentPlayer === aiPlayerColor) {
+    if (currentPlayer === aiPlayerColor) {
          console.log("Starting game with AI move");
          makeAIMove();
     }
@@ -880,11 +893,14 @@ createBoard();
 updateMandatoryCaptureStatus();
 console.log("Board created. Initial state:", boardState);
 console.log("Current turn:", currentPlayer);
+
+// Show mandatory captures if present
 if (mustCapture) {
     console.log("White has mandatory captures on the first turn.");
 }
+
 // Initial AI turn if AI is white
-if (playAgainstAI && currentPlayer === aiPlayerColor) {
+if (currentPlayer === aiPlayerColor) {
     makeAIMove();
 }
 
@@ -892,22 +908,9 @@ function loadLastPosition() {
     // ... existing code ...
     
     // If it's AI's turn after loading, trigger AI move
-    if (playAgainstAI && currentPlayer === aiPlayerColor && !aiThinking) {
+    if (currentPlayer === aiPlayerColor && !aiThinking) {
         setTimeout(makeAIMove, 500);
     }
-}
-
-// Add this function if it doesn't exist yet
-function updateTurnIndicator() {
-    const playerText = currentPlayer === 'white' ? 'білих' : 'чорних';
-    const aiText = currentPlayer === aiPlayerColor && playAgainstAI ? ' (ШІ думає...)' : '';
-    
-    // Add animation for turn change
-    turnElement.classList.add('turn-change');
-    setTimeout(() => {
-        turnElement.textContent = playerText + aiText;
-        turnElement.classList.remove('turn-change');
-    }, 300);
 }
 
 // Add animation for piece movement

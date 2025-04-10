@@ -36,27 +36,23 @@ h1 {
 
 .controls {
     display: flex;
-    gap: 15px;
-    margin-bottom: 15px;
-    width: 100%;
-    justify-content: space-between;
-}
-
-.spacer {
-    flex-grow: 1;
-    min-width: 20px;
+    gap: 10px;
+    align-items: center;
+    justify-content: center;
+    width: 100%; /* Take full width of footer */
 }
 
 button {
     background: linear-gradient(to bottom, #3498db, #2980b9);
     color: white;
     border: none;
-    padding: 10px 20px;
+    padding: 8px 15px;
     border-radius: 50px;
-    font-size: 16px;
+    font-size: 14px;
     cursor: pointer;
     transition: all 0.3s ease;
     box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    min-width: 90px;
 }
 
 button:hover {
@@ -75,13 +71,15 @@ button:disabled {
 }
 
 .turn-indicator {
-    font-size: 1.4rem;
-    margin: 10px 0;
+    font-size: 1.2rem;
+    margin: 0 0 20px 0;
     padding: 8px 20px;
     background-color: rgba(0, 0, 0, 0.2);
     border-radius: 50px;
     box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.1);
     transition: all 0.3s ease;
+    min-width: 100px;
+    text-align: center;
 }
 
 .turn-change {
@@ -223,8 +221,21 @@ button:disabled {
         font-size: 2rem;
     }
     
+    .game-footer {
+        width: calc(100% - 30px);
+        max-width: 320px;
+    }
+    
     .controls {
-        flex-direction: column;
+        flex-wrap: wrap;
+        justify-content: center;
+    }
+    
+    button {
+        margin: 5px;
+        min-width: 80px;
+        padding: 6px 10px;
+        font-size: 13px;
     }
 }
 
@@ -234,7 +245,8 @@ button:disabled {
     padding: 15px;
     background-color: rgba(0, 0, 0, 0.2);
     border-radius: 10px;
-    width: 100%;
+    width: calc(100% - 30px); /* Adjusting width to match container */
+    max-width: 560px; /* Match the checkerboard width */
     display: flex;
     justify-content: center;
 }

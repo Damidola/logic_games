@@ -1,0 +1,145 @@
+/* ================================================
+   Styles.css - Main Stylesheet
+   Contains variables and general layout styling
+   ================================================ */
+
+/* --- CSS Variables --- */
+:root {
+    /* Night Theme Variables (Now Default and Only) */
+    --board-light: #e8d0aa; /* Классический бежевый цвет для светлых клеток */
+    --board-dark: #b58863; /* Классический коричневый цвет для темных клеток */
+    --piece-white: #e0e0e0; /* Возвращаем исходный цвет */
+    --piece-white-outline: #333333; /* Обводка для белых фигур */
+    --piece-black: #222222; /* Насыщенный черный для черных фигур */
+    --background-color: #212121;
+    --container-color: #333;
+    --button-color: #787878;
+    --button-hover: #8a8a8a;
+    --button-active-bg: #9e9e9e;
+    --button-disabled: #555;
+    --text-color: #f0f0f0;
+    --highlight-move-normal: rgba(100, 181, 246, 0.6);
+    --highlight-move-capture: rgba(229, 115, 115, 0.6);
+    --highlight-hint: rgba(0, 200, 255, 0.8);
+    --highlight-drag-valid: rgba(102, 187, 106, 0.7);
+    --highlight-last-move: rgba(255, 235, 100, 0.4);
+    --highlight-selected-piece: rgba(255, 255, 100, 0.3);
+    --modal-bg: rgba(0, 0, 0, .8);
+    --border-color: #555;
+    --shadow-color: rgba(0, 0, 0, .4);
+    --avatar-bg: #444;
+    --touch-drag-clone-opacity: 0.8;
+    --status-avatar-size: 160px;
+    --arrow-button-size: 60px;
+    --font-main: 'Fredoka One', cursive, 'Roboto', sans-serif;
+    --font-text: 'Patrick Hand', cursive, 'Roboto', sans-serif;
+}
+
+/* --- General Styles & Layout --- */
+* { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+html { font-size: 16px; }
+
+body {
+    font-family: var(--font-text), Arial, sans-serif;
+    background-color: var(--background-color);
+    color: var(--text-color);
+    display: flex; flex-direction: column; justify-content: flex-start; align-items: center;
+    min-height: 100vh; padding: 5px; font-size: 1rem;
+    overscroll-behavior: none; touch-action: none;
+    user-select: none; -webkit-user-select: none; -moz-user-select: none; -ms-user-select: none;
+    position: relative;
+    padding-bottom: 100px; /* Add space for fixed buttons */
+}
+
+.game-container {
+    background-color: var(--container-color); padding: 10px; border-radius: 15px;
+    box-shadow: 0 5px 15px var(--shadow-color); text-align: center;
+    width: 100%; max-width: 500px; margin-bottom: 10px;
+    position: relative; z-index: 1; touch-action: auto;
+    display: flex; flex-direction: column;
+    min-height: calc(100vh - 20px); /* Adjusted height */
+    padding-top: 250px; /* Increased to accommodate larger avatar */
+    padding-bottom: 15px; /* Add some bottom padding */
+}
+
+.top-bar { min-height: 0px; /* Placeholder if needed */ }
+
+/* --- Status Area & Avatar --- */
+.status-area {
+    position: absolute;
+    top: 10px;
+    left: 0;
+    right: 0;
+    display: flex; justify-content: center; align-items: center;
+    z-index: 2;
+    padding: 0 10px;
+    height: 45vw; /* Match avatar height */
+    max-height: 300px; /* Match avatar max-height */
+}
+
+#opponent-selector {
+    display: flex; align-items: center; justify-content: center; gap: 10px;
+    flex-grow: 1; transition: opacity 0.3s ease, visibility 0.3s ease;
+}
+
+/* Hide opponent selector in PvP */
+body.pvp-mode #opponent-selector { opacity: 0; visibility: hidden; pointer-events: none; }
+
+#ai-avatar {
+    width: 45vw; /* Increased from 35vw */
+    height: 45vw; /* Increased from 35vw */
+    max-width: 300px; /* Increased from 250px */
+    max-height: 300px; /* Increased from 250px */
+    border-radius: 20%;
+    object-fit: cover; background-color: var(--avatar-bg); border: 1px solid var(--border-color);
+    transition: opacity 0.3s ease;
+    cursor: default;
+    box-shadow: 0 8px 16px rgba(0,0,0,0.3); /* Add shadow for depth */
+}
+
+/* --- Game Controls Area --- */
+.game-controls {
+    display: flex; justify-content: center; align-items: center;
+    gap: 12px; /* Increased from 10px */
+    padding: 20px 0; /* Increased from 15px */
+    margin-top: auto; /* Push to bottom of game container */
+    border-radius: 0; /* Removed border radius */
+    background-color: transparent; /* Removed background */
+    box-shadow: none; /* Removed shadow */
+}
+
+.center-buttons {
+     display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; /* Increased from 8px 10px */
+}
+
+.board-wrapper {
+    position: relative;
+    margin-bottom: 20px;
+    padding: 0 10px;
+    margin-top: 30px;
+}
+
+.captured-pawns-counter {
+    position: absolute;
+    bottom: -40px; /* Changed from -50px to move it higher */
+    right: 10px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    background-color: rgba(100, 100, 100, 0.8); /* Darker, semi-transparent background */
+    padding: 4px 8px;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    font-size: 0.8em;
+    color: #fff; /* White text for better contrast */
+}
+
+.captured-pawns-counter .pawn-icon {
+    font-size: 1em;
+}
+
+.captured-pawns-counter .count {
+    font-weight: bold;
+    min-width: 16px;
+    text-align: center;
+} 

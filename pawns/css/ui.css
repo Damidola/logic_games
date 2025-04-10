@@ -1,0 +1,133 @@
+/* ================================================
+   UI.css - User Interface Components
+   Contains button styles, modals, and other UI components
+   ================================================ */
+
+/* --- Buttons & Interactive Components --- */
+.game-controls button, .arrow-button {
+    font-family: var(--font-text), Arial, sans-serif; 
+    font-size: 1.2em; /* Increased from 1.0em */
+    padding: 10px 15px; /* Increased from 6px 10px */
+    border-radius: 12px; /* Increased from 8px */
+    border: 1px solid var(--border-color); 
+    cursor: pointer;
+    background-color: var(--button-color); 
+    color: var(--text-color);
+    margin: 0;
+    transition: all 0.2s ease;
+    display: inline-flex; 
+    align-items: center; 
+    justify-content: center; 
+    gap: 4px;
+    touch-action: auto; /* Allow default touch actions */
+    box-shadow: 0 4px 0 rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.2); /* 3D effect */
+    text-shadow: 0 1px 1px rgba(0,0,0,0.5); /* Text shadow */
+    position: relative;
+    top: 0;
+}
+
+.game-controls button:active:not(:disabled), .arrow-button:active:not(:disabled) { 
+    transform: translateY(4px); 
+    box-shadow: 0 0 0 rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.1);
+    top: 4px;
+}
+
+.game-controls button:hover:not(:disabled), .arrow-button:hover:not(:disabled) { 
+    background-color: var(--button-hover);
+    transform: translateY(2px);
+    box-shadow: 0 2px 0 rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.2);
+}
+
+.arrow-button {
+    width: 15vw; /* Flexible width based on viewport */
+    height: 15vw; /* Flexible height based on viewport */
+    max-width: 70px; /* Increased from 60px */
+    max-height: 70px; /* Increased from 60px */
+    padding: 0;
+    font-size: 1.4em; /* Larger font for arrows */
+    line-height: 1; 
+    text-align: center;
+    border-radius: 50%; 
+    flex-shrink: 0;
+}
+
+button:disabled, .arrow-button:disabled {
+     /* background-color: var(--button-disabled) !important; */
+     /* color: #888 !important; */ 
+     cursor: not-allowed !important;
+     /* opacity: 0.6 !important; */
+     /* border-color: #666 !important; */ 
+     /* box-shadow: 0 2px 0 rgba(0,0,0,0.2), inset 0 1px 0 rgba(255,255,255,0.1) !important; */ 
+     /* transform: none !important; */
+     /* top: 0 !important; */
+}
+
+/* Special class for the redo button that's permanently disabled */
+.disabled-button {
+    /* background-color: var(--button-disabled) !important; */
+    /* color: #888 !important; */
+    cursor: not-allowed !important;
+    /* opacity: 0.4 !important; */ /* Even more transparent */
+    /* border-color: #555 !important; */
+    /* text-decoration: line-through; */ /* Visual indication that feature is not available */
+}
+
+/* Toggle Button */
+.toggle-button { 
+    /* background-color: var(--button-disabled);  */
+    /* opacity: 0.8;  */
+}
+
+.toggle-button.active { 
+    background-color: var(--button-active-bg); 
+    opacity: 1; 
+    color: white; 
+    font-weight: bold; 
+    box-shadow: 0 4px 0 rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.3);
+}
+
+#en-passant-toggle .icon::before { content: '🔔'; }
+#en-passant-toggle:not(.active) .icon::before { content: '🔕'; }
+
+/* --- Modal Styles --- */
+.modal {
+    display: none; position: fixed; z-index: 100; left: 0; top: 0; width: 100%; height: 100%;
+    overflow: auto; background-color: var(--modal-bg);
+    animation: fadeIn 0.4s ease; padding-top: 10vh;
+}
+
+@keyframes fadeIn { from{opacity:0;} to{opacity:1;} }
+
+.modal-content {
+    background-color: var(--container-color); color: var(--text-color);
+    margin: 5% auto; padding: 20px; border: 1px solid var(--border-color);
+    width: 90%; max-width: 400px; border-radius: 15px; text-align: center;
+    position: relative; box-shadow: 0 5px 15px var(--shadow-color);
+    animation: slideIn 0.4s ease;
+    touch-action: auto; /* Allow interaction */
+}
+
+@keyframes slideIn { from{transform:translateY(-30px); opacity:0;} to{transform:translateY(0); opacity:1;} }
+
+.close-button {
+    color: #aaa; position: absolute; top: 8px; right: 15px;
+    font-size: 26px; font-weight: bold; cursor: pointer;
+    transition: color 0.3s ease; touch-action: auto;
+}
+
+.close-button:hover { color: var(--text-color); }
+
+#cat-photo {
+    max-width: 100%; height: auto; max-height: 250px; margin: 10px auto 15px;
+    border-radius: 10px; box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+    background-color: var(--avatar-bg);
+    object-fit: contain; display: none; /* Controlled by JS */
+}
+
+.modal-buttons { display: flex; justify-content: center; gap: 10px; margin-top: 15px; }
+
+#play-again-button, #ok-button {
+    font-size: 1.1em; padding: 10px 18px;
+    font-family: var(--font-text), Arial, sans-serif;
+    touch-action: auto; /* Inherit button styles, allow touch */
+} 

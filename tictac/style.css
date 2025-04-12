@@ -1,0 +1,360 @@
+:root {
+    --cell-size: 110px; /* Slightly larger cells */
+    --mark-thickness: 12px; /* Thicker marks */
+    --background-start: #a1c4fd; /* Light blue */
+    --background-end: #c2e9fb;   /* Lighter blue */
+    --board-bg: #ffffffcc; /* Semi-transparent white */
+    --cell-bg: #fff; 
+    --cell-border-color: #cfe2f3; /* Soft blue-grey */
+    --cell-hover-bg: #e6f7ff; /* Very light blue on hover */
+    --x-color: #ff8a80; /* Soft red */
+    --o-color: #80d8ff; /* Soft blue */
+    --x-shadow: 2px 2px 3px rgba(255, 100, 90, 0.4);
+    --o-shadow: 2px 2px 3px rgba(90, 150, 255, 0.4);
+    --winning-bg-color: rgba(0, 0, 0, 0.75);
+    --winning-text-color: #fff;
+    --button-bg: linear-gradient(145deg, #81c784, #4caf50); /* Green gradient */
+    --button-hover-bg: linear-gradient(145deg, #66bb6a, #43a047);
+    --button-symbol-bg: #fff;
+    --button-symbol-shadow: 0 2px 5px rgba(0,0,0,0.2);
+    --button-text-color: #fff;
+    --font-family: 'Kristen ITC', 'Comic Sans MS', cursive, sans-serif; /* More playful font */
+}
+
+body {
+    margin: 0;
+    /* Apply a nice gradient background */
+    background: linear-gradient(135deg, var(--background-start) 0%, var(--background-end) 100%);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    font-family: var(--font-family);
+    color: #444; /* Darker grey for better contrast */
+    overflow: hidden; /* Prevent scrollbars from gradient */
+}
+
+h1 {
+    color: var(--x-color);
+    margin-bottom: 20px;
+    font-size: 3em;
+    text-shadow: 2px 2px 4px rgba(0,0,0,0.2);
+}
+
+.start-screen {
+    text-align: center;
+    background-color: var(--board-bg);
+    padding: 30px 40px;
+    border-radius: 20px;
+    box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+    margin-bottom: 40px; /* More space */
+    backdrop-filter: blur(5px); /* Frosted glass effect */
+}
+
+.start-screen h2 {
+    margin-bottom: 25px;
+    font-size: 2.2em;
+    color: #555;
+    font-weight: bold;
+}
+
+.symbol-selection button {
+    font-size: 3em; /* Larger symbols */
+    font-weight: bold;
+    width: 80px; /* Fixed width */
+    height: 80px; /* Fixed height */
+    margin: 0 15px;
+    cursor: pointer;
+    border: none; /* Remove border */
+    border-radius: 50%; /* Circular buttons */
+    background-color: var(--button-symbol-bg);
+    box-shadow: var(--button-symbol-shadow);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+    display: inline-flex; /* Align symbols */
+    justify-content: center;
+    align-items: center;
+}
+
+.symbol-selection button:hover {
+    transform: translateY(-3px) scale(1.05); /* Lift effect */
+    box-shadow: 0 6px 12px rgba(0,0,0,0.25);
+}
+
+.symbol-selection button#selectX {
+    color: var(--x-color);
+}
+
+.symbol-selection button#selectO {
+    color: var(--o-color);
+}
+
+.board-container {
+     /* Add some perspective for cell animation */
+    perspective: 1000px;
+}
+
+.board {
+    display: grid;
+    justify-content: center;
+    align-content: center;
+    grid-template-columns: repeat(3, var(--cell-size));
+    grid-template-rows: repeat(3, var(--cell-size));
+    gap: 8px; /* Slightly larger gap */
+    background-color: transparent; /* Make board bg transparent */
+    border: none; /* Remove board border */
+    border-radius: 15px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+    padding: 10px; /* Padding around cells */
+    background-color: var(--board-bg); /* Use the semi-transparent bg */
+    backdrop-filter: blur(5px);
+    position: relative; /* Needed for the winning line */
+}
+
+.winning-line {
+    position: absolute;
+    background-color: rgba(220, 50, 50, 0.85); /* Трохи насиченіший колір */
+    height: 10px; /* Трохи товстіша лінія */
+    border-radius: 5px;
+    transform-origin: left center; 
+    transform: scaleX(0);
+    transition: transform 0.5s ease-in-out;
+    z-index: 5; 
+    display: none;
+    pointer-events: none; /* Щоб не перекривала кліки */
+}
+
+.winning-line.show {
+    display: block;
+    transform: scaleX(1);
+}
+
+/* Горизонтальні лінії - точніше центрування */
+.winning-line.h1 { top: calc(var(--cell-size) / 2 + 10px - 5px); left: 10px; width: calc(var(--cell-size) * 3 + 8px * 2); }
+.winning-line.h2 { top: calc(var(--cell-size) * 1.5 + 10px + 8px - 5px); left: 10px; width: calc(var(--cell-size) * 3 + 8px * 2); }
+.winning-line.h3 { top: calc(var(--cell-size) * 2.5 + 10px + 8px * 2 - 5px); left: 10px; width: calc(var(--cell-size) * 3 + 8px * 2); }
+
+/* Вертикальні лінії - точніше центрування */
+.winning-line.v1 { left: calc(var(--cell-size) / 2 + 10px - 5px); top: 10px; height: calc(var(--cell-size) * 3 + 8px * 2); width: 10px; transform-origin: top center; transform: scaleY(0); }
+.winning-line.v2 { left: calc(var(--cell-size) * 1.5 + 10px + 8px - 5px); top: 10px; height: calc(var(--cell-size) * 3 + 8px * 2); width: 10px; transform-origin: top center; transform: scaleY(0); }
+.winning-line.v3 { left: calc(var(--cell-size) * 2.5 + 10px + 8px * 2 - 5px); top: 10px; height: calc(var(--cell-size) * 3 + 8px * 2); width: 10px; transform-origin: top center; transform: scaleY(0); }
+
+.winning-line.v1.show,
+.winning-line.v2.show,
+.winning-line.v3.show {
+    transform: scaleY(1);
+}
+
+/* Діагональні лінії - корекція позиціонування */
+.winning-line.d1 {
+    /* Вираховуємо ширину діагоналі дошки (з урахуванням gap) */
+    width: calc(sqrt(2) * (var(--cell-size) * 3 + 8px * 2)); 
+    /* Центруємо лінію */
+    top: calc(50% - 5px); /* 50% дошки мінус половина висоти лінії */
+    left: calc(50% - (sqrt(2) * (var(--cell-size) * 3 + 8px * 2)) / 2); /* 50% дошки мінус половина ширини лінії */
+    transform: rotate(45deg) scaleX(0);
+    transform-origin: center center;
+}
+.winning-line.d2 {
+    width: calc(sqrt(2) * (var(--cell-size) * 3 + 8px * 2)); 
+    top: calc(50% - 5px);
+    left: calc(50% - (sqrt(2) * (var(--cell-size) * 3 + 8px * 2)) / 2);
+    transform: rotate(-45deg) scaleX(0);
+    transform-origin: center center;
+}
+
+.winning-line.d1.show,
+.winning-line.d2.show {
+    transform: rotate(45deg) scaleX(1); /* Для d1 */
+}
+.winning-line.d2.show {
+    transform: rotate(-45deg) scaleX(1); /* Перевизначення для d2 */
+}
+
+.cell {
+    width: var(--cell-size);
+    height: var(--cell-size);
+    background-color: var(--cell-bg);
+    border: 1px solid var(--cell-border-color); /* Thinner border */
+    border-radius: 10px; /* Rounded corners for cells */
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    position: relative;
+    cursor: pointer;
+    font-size: calc(var(--cell-size) * 0.7); /* Adjust font size based on cell */
+    font-weight: bold;
+    transition: background-color 0.3s ease, transform 0.2s ease;
+    box-shadow: inset 0 0 5px rgba(0,0,0,0.05); /* Subtle inner shadow */
+}
+
+/* Remove specific border removals for a cleaner look */
+.cell:first-child,
+.cell:nth-child(2),
+.cell:nth-child(3) {
+    /* border-top: none; */ /* Keep all borders */
+}
+.cell:nth-child(3n + 1) {
+   /* border-left: none; */
+}
+.cell:nth-child(3n + 3) {
+   /* border-right: none; */
+}
+.cell:last-child,
+.cell:nth-child(8),
+.cell:nth-child(7) {
+   /* border-bottom: none; */
+}
+
+
+.cell:not(.x):not(.o):hover {
+    background-color: var(--cell-hover-bg);
+    transform: scale(1.03); /* Slightly scale on hover */
+}
+
+.cell.x,
+.cell.o {
+    cursor: not-allowed;
+    transform: scale(1); /* Reset scale if marked */
+}
+
+/* --- X Mark Styling --- */
+.cell.x::before,
+.cell.x::after {
+    content: '';
+    position: absolute;
+    width: var(--mark-thickness);
+    height: calc(var(--cell-size) * 0.7); /* Adjust length */
+    background-color: var(--x-color);
+    border-radius: var(--mark-thickness);
+    box-shadow: var(--x-shadow);
+    transition: transform 0.3s cubic-bezier(0.68, -0.55, 0.27, 1.55); /* Bounce effect */
+}
+
+.cell.x::before {
+    transform: rotate(45deg) scaleY(0); /* Initial state for animation */
+    animation: drawX 0.4s ease-out forwards;
+}
+
+.cell.x::after {
+    transform: rotate(-45deg) scaleY(0); /* Initial state for animation */
+     animation: drawX 0.4s 0.2s ease-out forwards; /* Delayed second line */
+}
+
+@keyframes drawX {
+    to {
+        transform: rotate(45deg) scaleY(1); 
+    }
+}
+
+/* Apply -45deg rotation in the keyframe for the second line */
+.cell.x::after {
+    animation-name: drawXAfter;
+}
+
+@keyframes drawXAfter {
+     to {
+        transform: rotate(-45deg) scaleY(1);
+    }
+}
+
+/* --- O Mark Styling --- */
+.cell.o::before {
+    content: '';
+    position: absolute;
+    width: calc(var(--cell-size) * 0.6); /* Adjust size */
+    height: calc(var(--cell-size) * 0.6);
+    background-color: transparent;
+    border: var(--mark-thickness) solid var(--o-color);
+    border-radius: 50%;
+    box-shadow: var(--o-shadow);
+    transform: scale(0); /* Initial state for animation */
+    animation: drawO 0.4s cubic-bezier(0.68, -0.55, 0.27, 1.55) forwards;
+}
+
+@keyframes drawO {
+    to {
+        transform: scale(1);
+    }
+}
+
+/* --- Hover Preview --- */
+.board.x .cell:not(.x):not(.o):hover::before,
+.board.x .cell:not(.x):not(.o):hover::after,
+.board.o .cell:not(.x):not(.o):hover::before {
+    opacity: 0.3; /* Make hover preview subtle */
+    background-color: transparent; /* Reset background if any */
+    transform-origin: center center;
+}
+
+/* X Hover Preview */
+.board.x .cell:not(.x):not(.o):hover::before,
+.board.x .cell:not(.x):not(.o):hover::after {
+     background-color: var(--x-color);
+     box-shadow: none;
+}
+.board.x .cell:not(.x):not(.o):hover::before { transform: rotate(45deg) scale(0.8); }
+.board.x .cell:not(.x):not(.o):hover::after { transform: rotate(-45deg) scale(0.8); }
+
+/* O Hover Preview */
+.board.o .cell:not(.x):not(.o):hover::before {
+    border-color: var(--o-color);
+    box-shadow: none;
+     transform: scale(0.7);
+}
+
+/* Remove old hover styles */
+.cell.x:hover::before, .cell.x:hover::after { /* No change needed */ }
+.cell.o:hover::before { /* No change needed */ }
+
+/* --- Winning Message Styling --- */
+.winning-message {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: var(--winning-bg-color);
+    backdrop-filter: blur(8px); /* Stronger blur */
+    justify-content: center;
+    align-items: center;
+    color: var(--winning-text-color);
+    font-size: 4.5em; /* Larger text */
+    flex-direction: column;
+    text-align: center;
+    opacity: 0;
+    transition: opacity 0.5s ease-in-out;
+    z-index: 10;
+}
+
+.winning-message.show {
+    display: flex;
+    opacity: 1;
+}
+
+.winning-message div {
+    text-shadow: 3px 3px 8px rgba(0,0,0,0.7);
+    margin-bottom: 20px; /* Space before button */
+}
+
+.winning-message button {
+    font-size: 1.8rem; /* Adjusted size */
+    background: var(--button-bg);
+    color: var(--button-text-color);
+    border: none;
+    padding: 18px 35px;
+    margin-top: 25px;
+    border-radius: 50px; /* Pill shape */
+    cursor: pointer;
+    transition: background 0.3s ease, transform 0.2s ease, box-shadow 0.3s ease;
+    font-family: var(--font-family);
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+    font-weight: bold;
+}
+
+.winning-message button:hover {
+    background: var(--button-hover-bg);
+    transform: translateY(-3px) scale(1.03);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+} 

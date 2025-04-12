@@ -1,0 +1,672 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chess Puzzles vs Robot</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start; /* Align items to the top */
+            padding-top: 20px;
+            gap: 30px; /* Space between controls and board */
+            background-color: #f0f0f0;
+            min-height: 100vh;
+            flex-wrap: wrap; /* Allow wrapping on smaller screens */
+        }
+
+        .controls, .game-area {
+            background-color: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+
+        .controls {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            align-items: flex-start; /* Align labels/selects */
+        }
+
+        label {
+            font-weight: bold;
+            margin-right: 5px;
+        }
+        select, button {
+            padding: 8px 12px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            font-size: 1em;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+
+        #status {
+            margin-top: 15px;
+            font-weight: bold;
+            min-height: 20px; /* Reserve space */
+            color: #333;
+        }
+
+        #board {
+            width: 400px; /* Adjust size as needed */
+            height: 400px;
+            display: grid;
+            grid-template-columns: repeat(8, 1fr);
+            grid-template-rows: repeat(8, 1fr);
+            border: 2px solid #333;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+        }
+
+        .square {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 28px; /* Adjust piece size */
+            cursor: pointer;
+            user-select: none; /* Prevent text selection */
+        }
+
+        .white-square { background-color: #f0d9b5; }
+        .black-square { background-color: #b58863; }
+
+        .selected {
+            background-color: #6495ED !important; /* Cornflower blue */
+            box-shadow: inset 0 0 5px rgba(0,0,0,0.5);
+        }
+
+        .valid-move {
+            position: relative; /* Needed for pseudo-element */
+        }
+        .valid-move::after {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 20px; /* Dot size */
+            height: 20px;
+            background-color: rgba(0, 0, 0, 0.2); /* Semi-transparent dot */
+            border-radius: 50%;
+            pointer-events: none; /* Don't block clicks on the square */
+        }
+        .valid-move.capture::after {
+             /* Optional: different style for captures */
+            box-sizing: border-box; /* Include border in size */
+            width: 80%;
+            height: 80%;
+            background-color: transparent;
+            border: 4px solid rgba(255, 0, 0, 0.4); /* Red ring for capture */
+            border-radius: 50%;
+        }
+
+        /* Unicode Chess Pieces */
+        .piece-wP { color: #FFFFFF; text-shadow: 0 0 2px black; } /* White Pawn ♙ */
+        .piece-wN { color: #FFFFFF; text-shadow: 0 0 2px black; } /* White Knight ♘ */
+        .piece-wB { color: #FFFFFF; text-shadow: 0 0 2px black; } /* White Bishop ♗ */
+        .piece-wQ { color: #FFFFFF; text-shadow: 0 0 2px black; } /* White Queen ♕ */
+        .piece-bP { color: #000000; } /* Black Pawn ♟ */
+        .piece-bN { color: #000000; } /* Black Knight ♞ */
+        .piece-bB { color: #000000; } /* Black Bishop ♝ */
+        .piece-bQ { color: #000000; } /* Black Queen ♛ */
+
+    </style>
+</head>
+<body>
+
+    <div class="controls">
+        <h2>Game Setup</h2>
+        <div>
+            <label for="mode-select">Mode:</label>
+            <select id="mode-select">
+                <option value="p_vs_p1">Pawns vs Pawns (1)</option>
+                <option value="p_vs_p2">Pawns vs Pawns (2)</option>
+                <option value="n_vs_p1">2 Knights vs Pawns (1)</option>
+                <option value="n_vs_p2">2 Knights vs Pawns (2)</option>
+                <option value="b_vs_p1">2 Bishops vs Pawns (1)</option>
+                <option value="b_vs_p2">2 Bishops vs Pawns (2)</option>
+                <option value="q_vs_p">Queen vs 8 Pawns</option>
+            </select>
+        </div>
+        <div>
+            <label for="side-select">Play as:</label>
+            <select id="side-select">
+                <option value="w">White (Pawns)</option>
+                <option value="b">Black (Pieces)</option>
+            </select>
+        </div>
+        <button id="start-button">Start Game</button>
+        <div id="status">Select mode and side, then press Start.</div>
+    </div>
+
+    <div class="game-area">
+        <div id="board"></div>
+    </div>
+
+    <script>
+        const boardElement = document.getElementById('board');
+        const statusElement = document.getElementById('status');
+        const modeSelect = document.getElementById('mode-select');
+        const sideSelect = document.getElementById('side-select');
+        const startButton = document.getElementById('start-button');
+
+        const PIECES = {
+            wP: '♙', wN: '♘', wB: '♗', wQ: '♕',
+            bP: '♟', bN: '♞', bB: '♝', bQ: '♛'
+        };
+
+        let board = []; // 8x8 array representing the board state
+        let currentPlayer = 'w'; // 'w' for white, 'b' for black
+        let playerSide = 'w'; // Side the human player chose
+        let selectedSquare = null; // { row, col } of the selected piece
+        let validMoves = []; // Array of { row, col } for the selected piece
+        let gameOver = false;
+        let currentMode = '';
+        let robotMoveTimeout = null; // To handle delayed robot move
+
+        // --- Game Initialization ---
+
+        function getInitialBoardState(mode) {
+            const emptyBoard = () => Array(8).fill(null).map(() => Array(8).fill(null));
+            let state = emptyBoard();
+
+            // Standard pawn setup on rank 6 (index 6)
+            const setupPawns = (rank = 6) => {
+                for (let c = 0; c < 8; c++) {
+                    state[rank][c] = 'wP';
+                }
+            };
+
+            switch (mode) {
+                case 'p_vs_p1': // Example: 4 pawns vs 4 pawns
+                    state[6][2] = 'wP'; state[6][3] = 'wP'; state[6][4] = 'wP'; state[6][5] = 'wP';
+                    state[1][2] = 'bP'; state[1][3] = 'bP'; state[1][4] = 'bP'; state[1][5] = 'bP';
+                    break;
+                case 'p_vs_p2': // Example: 6 pawns vs 6 pawns
+                     state[6][1] = 'wP'; state[6][2] = 'wP'; state[6][3] = 'wP'; state[6][4] = 'wP'; state[6][5] = 'wP'; state[6][6] = 'wP';
+                     state[1][1] = 'bP'; state[1][2] = 'bP'; state[1][3] = 'bP'; state[1][4] = 'bP'; state[1][5] = 'bP'; state[1][6] = 'bP';
+                    break;
+                case 'n_vs_p1': // 2 Knights vs 4 Pawns
+                    setupPawns(6);
+                    state[0][1] = 'bN'; state[0][6] = 'bN';
+                    // Remove some pawns for balance if needed
+                    state[6][0] = null; state[6][1] = null; state[6][6] = null; state[6][7] = null;
+                    break;
+                 case 'n_vs_p2': // 2 Knights vs 6 Pawns
+                    setupPawns(6);
+                    state[0][1] = 'bN'; state[0][6] = 'bN';
+                     // Remove fewer pawns
+                    state[6][0] = null; state[6][7] = null;
+                    break;
+                 case 'b_vs_p1': // 2 Bishops vs 4 Pawns
+                    setupPawns(6);
+                    state[0][2] = 'bB'; state[0][5] = 'bB';
+                    state[6][0] = null; state[6][1] = null; state[6][6] = null; state[6][7] = null;
+                    break;
+                case 'b_vs_p2': // 2 Bishops vs 6 Pawns
+                    setupPawns(6);
+                    state[0][2] = 'bB'; state[0][5] = 'bB';
+                     state[6][0] = null; state[6][7] = null;
+                    break;
+                case 'q_vs_p': // Queen vs 8 Pawns
+                    setupPawns(6);
+                    state[0][3] = 'bQ'; // Black Queen
+                    break;
+                default: // Default to queen vs pawns
+                    setupPawns(6);
+                    state[0][3] = 'bQ';
+            }
+            return state;
+        }
+
+        function startGame() {
+            clearTimeout(robotMoveTimeout); // Cancel any pending robot move
+            currentMode = modeSelect.value;
+            playerSide = sideSelect.value;
+            board = getInitialBoardState(currentMode);
+            currentPlayer = 'w'; // White always moves first
+            selectedSquare = null;
+            validMoves = [];
+            gameOver = false;
+            statusElement.textContent = "Game started. White's turn.";
+            renderBoard();
+
+            // If player chose Black, the robot (White) moves first
+            if (playerSide === 'b') {
+                disableInput();
+                triggerRobotMove();
+            } else {
+                 enableInput(); // Make sure board is clickable for White player
+            }
+        }
+
+        startButton.addEventListener('click', startGame);
+
+        // --- Rendering ---
+
+        function renderBoard() {
+            boardElement.innerHTML = ''; // Clear previous board
+
+            for (let r = 0; r < 8; r++) {
+                for (let c = 0; c < 8; c++) {
+                    const square = document.createElement('div');
+                    square.classList.add('square');
+                    square.classList.add((r + c) % 2 === 0 ? 'white-square' : 'black-square');
+                    square.dataset.row = r;
+                    square.dataset.col = c;
+
+                    const piece = board[r][c];
+                    if (piece) {
+                        square.textContent = PIECES[piece];
+                        square.classList.add(`piece-${piece}`);
+                    }
+
+                    // Highlight selected square
+                    if (selectedSquare && selectedSquare.row === r && selectedSquare.col === c) {
+                        square.classList.add('selected');
+                    }
+
+                    // Highlight valid moves
+                    const isMoveValid = validMoves.some(move => move.row === r && move.col === c);
+                    if (isMoveValid) {
+                        square.classList.add('valid-move');
+                         // Add capture class if the move captures a piece
+                        if (board[r][c]) {
+                             square.classList.add('capture');
+                        }
+                    }
+
+                    square.addEventListener('click', handleSquareClick);
+                    boardElement.appendChild(square);
+                }
+            }
+             updateStatus();
+        }
+
+        function updateStatus() {
+             if (gameOver) return; // Keep the game over message
+
+             let turnText = currentPlayer === 'w' ? "White's Turn" : "Black's Turn";
+             let playerIndicator = (currentPlayer === playerSide) ? " (Your Turn)" : " (Robot's Turn)";
+             statusElement.textContent = turnText + playerIndicator;
+        }
+
+        // --- Event Handling ---
+
+        function handleSquareClick(event) {
+            if (gameOver || currentPlayer !== playerSide) return; // Only allow clicks on player's turn
+
+            const target = event.currentTarget;
+            const row = parseInt(target.dataset.row);
+            const col = parseInt(target.dataset.col);
+
+            if (selectedSquare) {
+                // Try to make a move
+                const isValidTarget = validMoves.some(move => move.row === row && move.col === col);
+                if (isValidTarget) {
+                    makeMove(selectedSquare, { row, col });
+                    clearSelection();
+                    // Move made, now it's potentially robot's turn
+                    if (!gameOver && currentPlayer !== playerSide) {
+                        disableInput();
+                        triggerRobotMove();
+                    }
+                } else {
+                    // Clicked elsewhere - deselect or select new piece
+                    clearSelection();
+                    const piece = board[row][col];
+                    if (piece && piece.startsWith(playerSide)) {
+                        selectPiece(row, col);
+                    }
+                }
+            } else {
+                // Select a piece
+                const piece = board[row][col];
+                if (piece && piece.startsWith(playerSide)) {
+                    selectPiece(row, col);
+                }
+            }
+            renderBoard(); // Re-render to show selection/valid moves
+        }
+
+        function disableInput() {
+            boardElement.style.pointerEvents = 'none'; // Disable clicks on board
+            startButton.disabled = true; // Disable start button during robot move
+        }
+
+        function enableInput() {
+            boardElement.style.pointerEvents = 'auto'; // Enable clicks
+             startButton.disabled = false;
+        }
+
+        // --- Piece Selection and Move Logic ---
+
+        function selectPiece(row, col) {
+            selectedSquare = { row, col };
+            validMoves = getValidMoves(row, col);
+        }
+
+        function clearSelection() {
+            selectedSquare = null;
+            validMoves = [];
+        }
+
+        function makeMove(from, to) {
+            const piece = board[from.row][from.col];
+            board[to.row][to.col] = piece;
+            board[from.row][from.col] = null;
+
+            // Switch player
+            currentPlayer = (currentPlayer === 'w') ? 'b' : 'w';
+
+            // Check for game over
+             checkGameOver(piece, to.row); // Pass moved piece and its final row
+
+             // Don't render here, renderBoard is called after move or after robot move
+        }
+
+        // --- Valid Move Calculation ---
+
+        function isValid(row, col) {
+            return row >= 0 && row < 8 && col >= 0 && col < 8;
+        }
+
+        function getValidMoves(row, col) {
+            const piece = board[row][col];
+            if (!piece) return [];
+
+            const moves = [];
+            const color = piece[0]; // 'w' or 'b'
+            const type = piece[1]; // 'P', 'N', 'B', 'Q'
+
+            switch (type) {
+                case 'P': // Pawn
+                    const direction = (color === 'w') ? -1 : 1;
+                    const startRow = (color === 'w') ? 6 : 1;
+
+                    // Forward 1 square
+                    let r1 = row + direction;
+                    if (isValid(r1, col) && !board[r1][col]) {
+                        moves.push({ row: r1, col: col });
+                        // Forward 2 squares (only from start row)
+                        if (row === startRow) {
+                             let r2 = row + 2 * direction;
+                            if (isValid(r2, col) && !board[r2][col]) {
+                                moves.push({ row: r2, col: col });
+                            }
+                        }
+                    }
+                    // Diagonal Captures
+                    for (let dc of [-1, 1]) {
+                        let rc = col + dc;
+                        if (isValid(r1, rc) && board[r1][rc] && board[r1][rc][0] !== color) {
+                            moves.push({ row: r1, col: rc });
+                        }
+                    }
+                    break;
+
+                case 'N': // Knight
+                    const knightMoves = [
+                        [-2, -1], [-2, 1], [-1, -2], [-1, 2],
+                        [1, -2], [1, 2], [2, -1], [2, 1]
+                    ];
+                    knightMoves.forEach(([dr, dc]) => {
+                        const nr = row + dr;
+                        const nc = col + dc;
+                        if (isValid(nr, nc)) {
+                            const targetPiece = board[nr][nc];
+                            if (!targetPiece || targetPiece[0] !== color) {
+                                moves.push({ row: nr, col: nc });
+                            }
+                        }
+                    });
+                    break;
+
+                case 'B': // Bishop
+                     const bishopDirs = [[-1, -1], [-1, 1], [1, -1], [1, 1]];
+                    bishopDirs.forEach(([dr, dc]) => {
+                        for (let i = 1; ; i++) {
+                            const nr = row + i * dr;
+                            const nc = col + i * dc;
+                            if (!isValid(nr, nc)) break;
+                            const targetPiece = board[nr][nc];
+                            if (!targetPiece) {
+                                moves.push({ row: nr, col: nc });
+                            } else {
+                                if (targetPiece[0] !== color) {
+                                    moves.push({ row: nr, col: nc }); // Capture
+                                }
+                                break; // Blocked
+                            }
+                        }
+                    });
+                    break;
+
+                 case 'Q': // Queen (Bishop + Rook logic)
+                     const queenDirs = [
+                         [-1, -1], [-1, 1], [1, -1], [1, 1], // Bishop moves
+                         [-1, 0], [1, 0], [0, -1], [0, 1]  // Rook moves
+                     ];
+                    queenDirs.forEach(([dr, dc]) => {
+                        for (let i = 1; ; i++) {
+                            const nr = row + i * dr;
+                            const nc = col + i * dc;
+                            if (!isValid(nr, nc)) break;
+                            const targetPiece = board[nr][nc];
+                            if (!targetPiece) {
+                                moves.push({ row: nr, col: nc });
+                            } else {
+                                if (targetPiece[0] !== color) {
+                                    moves.push({ row: nr, col: nc }); // Capture
+                                }
+                                break; // Blocked
+                            }
+                        }
+                    });
+                    break;
+            }
+            return moves;
+        }
+
+        // --- Game Over Check ---
+
+        function checkGameOver(movedPiece, finalRow) {
+            // Condition 1: White pawn reaches the end (row 0)
+            if (movedPiece === 'wP' && finalRow === 0) {
+                gameOver = true;
+                statusElement.textContent = "Game Over! White pawn reached the end. White wins!";
+                return;
+            }
+             // Condition 1b: Black pawn reaches the end (row 7) - relevant for p_vs_p modes
+            if (movedPiece === 'bP' && finalRow === 7) {
+                 gameOver = true;
+                 statusElement.textContent = "Game Over! Black pawn reached the end. Black wins!";
+                 return;
+            }
+
+
+            // Condition 2: Check if all pawns of one color are captured
+            let whitePawnsLeft = 0;
+            let blackPawnsLeft = 0; // Relevant for p_vs_p modes
+            let blackPiecesLeft = 0; // Non-pawn pieces for Black
+
+            for (let r = 0; r < 8; r++) {
+                for (let c = 0; c < 8; c++) {
+                    const piece = board[r][c];
+                    if (piece === 'wP') whitePawnsLeft++;
+                    else if (piece === 'bP') blackPawnsLeft++;
+                    else if (piece && piece.startsWith('b')) blackPiecesLeft++; // Count non-pawn black pieces
+                }
+            }
+
+            // Modes where Black (Pieces) win by capturing all White pawns
+            if (['n_vs_p1', 'n_vs_p2', 'b_vs_p1', 'b_vs_p2', 'q_vs_p'].includes(currentMode)) {
+                if (whitePawnsLeft === 0) {
+                     gameOver = true;
+                     statusElement.textContent = "Game Over! All white pawns captured. Black wins!";
+                     return;
+                }
+            }
+
+             // Modes where White (Pawns) win if all Black pieces are captured (e.g., in P vs P)
+            if (['p_vs_p1', 'p_vs_p2'].includes(currentMode)) {
+                if (blackPawnsLeft === 0) {
+                    gameOver = true;
+                    statusElement.textContent = "Game Over! All black pawns captured. White wins!";
+                    return;
+                 }
+                 // And vice versa for Black winning P vs P
+                 if (whitePawnsLeft === 0) {
+                     gameOver = true;
+                     statusElement.textContent = "Game Over! All white pawns captured. Black wins!";
+                     return;
+                 }
+            }
+
+
+            // Condition 3: Stalemate (Simplified check - no legal moves for current player)
+             let hasLegalMoves = false;
+             const playerColor = currentPlayer;
+             for (let r = 0; r < 8; r++) {
+                 for (let c = 0; c < 8; c++) {
+                     const piece = board[r][c];
+                     if (piece && piece.startsWith(playerColor)) {
+                         if (getValidMoves(r, c).length > 0) {
+                             hasLegalMoves = true;
+                             break;
+                         }
+                     }
+                 }
+                 if (hasLegalMoves) break;
+             }
+
+             if (!hasLegalMoves && !gameOver) { // Only declare stalemate if no other win condition met
+                 gameOver = true;
+                 statusElement.textContent = "Game Over! Stalemate (No legal moves). It's a draw!";
+             }
+
+             if (gameOver) {
+                enableInput(); // Re-enable start button etc. when game ends
+             }
+        }
+
+
+        // --- Robot AI ---
+
+        function triggerRobotMove() {
+            if (gameOver) return;
+            // Add a small delay for better UX
+            robotMoveTimeout = setTimeout(robotMove, 500); // 500ms delay
+        }
+
+        function robotMove() {
+            if (gameOver || currentPlayer === playerSide) return; // Should not happen if called correctly, but safe check
+
+            const possibleMoves = []; // Store all possible moves: { from: {r,c}, to: {r,c}, piece: 'wP', score: 0 }
+            const robotColor = currentPlayer;
+            const opponentColor = (robotColor === 'w') ? 'b' : 'w';
+
+            // 1. Find all possible moves and score them
+            for (let r = 0; r < 8; r++) {
+                for (let c = 0; c < 8; c++) {
+                    const piece = board[r][c];
+                    if (piece && piece.startsWith(robotColor)) {
+                        const moves = getValidMoves(r, c);
+                        moves.forEach(to => {
+                            let score = 0;
+                            const targetPiece = board[to.row][to.col];
+
+                            // Score captures highest
+                            if (targetPiece && targetPiece.startsWith(opponentColor)) {
+                                score = 100; // Base score for capture
+                                // Prioritize capturing more valuable pieces if they existed
+                                // Here, all opponent pieces are roughly equal value (pawns or pieces)
+                            }
+
+                             // Score pawn advancement (for white pawns)
+                            if (piece === 'wP') {
+                                score += (6 - to.row); // Higher score for closer to promotion (row 0)
+                            }
+                            // Score pawn advancement (for black pawns in p_vs_p)
+                            if (piece === 'bP') {
+                                score += (to.row - 1); // Higher score for closer to promotion (row 7)
+                            }
+
+                            // Score moving pieces towards pawns (for black pieces)
+                             if (robotColor === 'b' && piece !== 'bP') {
+                                 let minDist = 100;
+                                 for(let pr=0; pr<8; pr++) {
+                                     for(let pc=0; pc<8; pc++) {
+                                         if (board[pr][pc] === 'wP') {
+                                             // Manhattan distance
+                                             let dist = Math.abs(to.row - pr) + Math.abs(to.col - pc);
+                                             if (dist < minDist) minDist = dist;
+                                         }
+                                     }
+                                 }
+                                 if (minDist < 100) {
+                                      score += (10 - minDist); // Add small score for getting closer
+                                 }
+                             }
+
+
+                            possibleMoves.push({ from: { row: r, col: c }, to: to, piece: piece, score: score });
+                        });
+                    }
+                }
+            }
+
+            if (possibleMoves.length === 0) {
+                // This should ideally be caught by stalemate check earlier, but safety check
+                checkGameOver(null, -1); // Trigger stalemate check again
+                 renderBoard(); // Update status
+                 enableInput();
+                return;
+            }
+
+            // 2. Choose the best move (highest score)
+            possibleMoves.sort((a, b) => b.score - a.score); // Sort descending by score
+
+            // Add some randomness among top moves if scores are equal
+            const bestScore = possibleMoves[0].score;
+            const bestMoves = possibleMoves.filter(move => move.score === bestScore);
+            const chosenMove = bestMoves[Math.floor(Math.random() * bestMoves.length)];
+
+            // 3. Make the chosen move
+            makeMove(chosenMove.from, chosenMove.to);
+            renderBoard(); // Update the board visually after robot move
+
+            // Check game over again after robot move
+             if (gameOver) {
+                 enableInput();
+                 return;
+             }
+
+             // If game is not over, it's player's turn now
+            enableInput();
+            updateStatus(); // Update status to show player's turn
+        }
+
+        // --- Initial Setup ---
+        // Render empty board initially or wait for Start click
+        // For simplicity, let's just show the controls first.
+        // startGame(); // Remove this if you want player to press Start first
+
+    </script>
+
+</body>
+</html>

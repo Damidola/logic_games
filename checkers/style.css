@@ -210,6 +210,29 @@ button:disabled {
     }
 }
 
+/* Style for the element being dragged */
+.dragging-piece {
+    position: absolute;
+    pointer-events: none; /* Don't interfere with touch events underneath */
+    z-index: 1000;
+    opacity: 0.7;
+    transform: scale(1.15); /* Make it slightly larger */
+    cursor: grabbing;
+    /* Inherit base styles */
+    width: 80%; 
+    height: 80%;
+    border-radius: 50%;
+    box-sizing: border-box;
+    box-shadow: 0 10px 20px rgba(0, 0, 0, 0.6);
+}
+
+/* Style to hide the original piece in the square while dragging */
+.piece-hidden {
+    opacity: 0.3;
+    /* Optionally remove hover effect */
+    pointer-events: none; 
+}
+
 /* Responsive design for smaller screens */
 @media (max-width: 600px) {
     #checkerboard {

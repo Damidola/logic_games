@@ -5,6 +5,16 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Гра "Чешки"</title>
     <style>
+        :root {
+            --board-size: min(90vw, 90vh, 480px);
+            --square-size: calc(var(--board-size) / 8);
+            --piece-font-size: min(7vw, 7vh, 42px);
+            --label-font-size: min(1.5vw, 1.5vh, 10px);
+            --status-font-size: 1.4em;
+            --button-font-size: 1.1em;
+            --header-font-size: 2.5em;
+        }
+
         body {
             font-family: 'Roboto', 'Segoe UI', sans-serif;
             display: flex;
@@ -15,35 +25,37 @@
             flex-direction: column;
             color: #ecf0f1;
             margin: 0;
-            padding: 0;
+            padding: 10px; /* Add some padding for small screens */
+            box-sizing: border-box; /* Include padding in body size */
         }
         #game-container {
             display: flex;
             flex-direction: column;
             align-items: center;
             background-color: rgba(44, 62, 80, 0.7);
-            padding: 25px;
+            padding: clamp(15px, 4vw, 25px); /* Responsive padding */
             border-radius: 15px;
             box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+            max-width: 100%;
         }
         #board {
             display: grid;
-            grid-template-columns: repeat(8, 60px);
-            grid-template-rows: repeat(8, 60px);
-            width: 480px;
-            height: 480px;
+            grid-template-columns: repeat(8, 1fr); /* Use fractional units */
+            grid-template-rows: repeat(8, 1fr);
+            width: var(--board-size);
+            height: var(--board-size);
             border: 3px solid #34495e;
             border-radius: 5px;
             overflow: hidden;
             box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+            position: relative; /* Needed for absolute positioning of labels if we switch */
         }
         .square {
-            width: 60px;
-            height: 60px;
+           /* Width/Height are now controlled by the grid */
             display: flex;
             justify-content: center;
             align-items: center;
-            font-size: 36px;
+           /* font-size is handled by piece */
             position: relative;
             box-sizing: border-box;
             transition: background-color 0.2s ease;
@@ -57,7 +69,7 @@
             position: absolute;
             bottom: 2px;
             right: 2px;
-            font-size: 10px;
+            font-size: var(--label-font-size);
             color: #2c3e50;
             font-weight: bold;
             pointer-events: none;
@@ -67,7 +79,7 @@
             position: absolute;
             top: 2px;
             left: 2px;
-            font-size: 10px;
+            font-size: var(--label-font-size);
             color: #2c3e50;
             font-weight: bold;
             pointer-events: none;
@@ -89,8 +101,13 @@
         .piece {
             cursor: pointer;
             user-select: none;
-            font-size: 42px;
+            font-size: var(--piece-font-size);
             transition: transform 0.2s ease;
+            display: flex; /* Center piece within square */
+            justify-content: center;
+            align-items: center;
+            width: 100%;
+            height: 100%;
         }
         .piece:hover {
             transform: scale(1.1);
@@ -102,7 +119,7 @@
             background-color: rgba(46, 204, 113, 0.6) !important;
         }
         .possible-move {
-            background-color: rgba(52, 152, 219, 0.6) !important;
+            background-color: rgba(250, 234, 10, 0.947) !important;
             cursor: pointer;
         }
         .possible-capture {
@@ -121,9 +138,9 @@
 
         #status {
             margin: 20px 0;
-            font-size: 1.4em;
+            font-size: var(--status-font-size);
             text-align: center;
-            min-height: 50px;
+            min-height: 1.5em; /* Relative min-height */
             font-weight: bold;
             color: #ecf0f1;
             text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.3);
@@ -131,7 +148,7 @@
         #reset-button {
             margin-top: 15px;
             padding: 12px 24px;
-            font-size: 1.1em;
+            font-size: var(--button-font-size);
             cursor: pointer;
             background-color: #e74c3c;
             color: white;
@@ -149,8 +166,34 @@
             color: #ecf0f1;
             margin-bottom: 20px;
             text-align: center;
-            font-size: 2.5em;
+            font-size: var(--header-font-size);
             text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+        }
+
+        /* Media Query for smaller screens */
+        @media (max-width: 600px) {
+            :root {
+                --status-font-size: 1.2em;
+                --button-font-size: 1em;
+                --header-font-size: 2em;
+            }
+            #reset-button {
+                padding: 10px 20px;
+            }
+        }
+
+        @media (max-width: 400px) { /* Even smaller screens */
+             :root {
+                --status-font-size: 1.1em;
+                --button-font-size: 0.9em;
+                --header-font-size: 1.7em;
+            }
+             #reset-button {
+                padding: 8px 16px;
+            }
+             #game-container {
+                 padding: 10px;
+             }
         }
     </style>
 </head>
@@ -260,7 +303,14 @@
                         }
                     }
 
+                    // Add both click and touchstart listeners
                     square.addEventListener('click', () => handleSquareClick(r, c));
+                    square.addEventListener('touchstart', (event) => {
+                        // Prevent potential scrolling/zooming interference
+                        if (event.cancelable) event.preventDefault(); 
+                        handleSquareClick(r, c); 
+                    }, { passive: false }); // Need passive: false to call preventDefault
+
                     boardElement.appendChild(square);
                 }
             }
@@ -787,10 +837,17 @@
 
 
         // --- Event Listeners ---
-        resetButton.addEventListener('click', () => {
+        // Define the reset function separately to call from both listeners
+        function resetGame() {
              createBoard();
              renderBoard();
-        });
+        }
+        
+        resetButton.addEventListener('click', resetGame);
+        resetButton.addEventListener('touchstart', (event) => {
+            if (event.cancelable) event.preventDefault();
+            resetGame();
+        }, { passive: false });
 
 
         // --- Initial Game Setup ---

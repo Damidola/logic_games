@@ -14,6 +14,16 @@ let previousComputerBoardState = null;
 let previousComputerCurrentPlayer = null;
 let turnInProgress = false; // Flag to manage state saving only once per turn
 
+// --- Drag and Drop State ---
+let draggedPieceData = null; // { element, startRow, startCol, isKing, color }
+let draggedPieceElement = null; // The visual clone being dragged
+let isDragging = false; // Flag to track drag state
+let touchIdentifier = null;
+let initialTouchX = 0;
+let initialTouchY = 0;
+let initialPieceOffsetX = 0;
+let initialPieceOffsetY = 0;
+
 // --- Game Mode ---
 let aiPlayerColor = 'black'; // AI plays as black by default
 let aiThinking = false; // Track when AI is calculating its move
@@ -212,6 +222,7 @@ function addPiece(squareElement, color, row, col) {
     squareElement.appendChild(piece);
     boardState[row][col] = { color: color, isKing: false, element: piece };
     piece.addEventListener('click', handlePieceClick);
+    piece.addEventListener('touchstart', handleTouchStart, { passive: false });
 }
 
 function handlePieceClick(event) {
@@ -247,13 +258,12 @@ function handlePieceClick(event) {
 }
 
 function handleSquareClick(event) {
-    if (!selectedPiece) return; // No piece selected
+    // Ignore clicks if dragging or no piece is selected (by click)
+    if (isDragging || !selectedPiece || aiThinking) return;
 
-    const squareElement = event.target.closest('.square'); // Ensure we get the square, even if clicking highlight overlay
-    if (!squareElement || squareElement.classList.contains('piece')) return; // Ignore clicks on pieces themselves
-
-    const targetRow = parseInt(squareElement.dataset.row);
-    const targetCol = parseInt(squareElement.dataset.col);
+    const squareElement = event.target;
+    const endRow = parseInt(squareElement.dataset.row);
+    const endCol = parseInt(squareElement.dataset.col);
 
     // Check if this square has valid move data stored
     if (!squareElement.dataset.moveInfo) {
@@ -267,15 +277,13 @@ function handleSquareClick(event) {
          return;
      }
 
-
     const moveInfo = JSON.parse(squareElement.dataset.moveInfo);
 
     // We already validated that this piece *can* be selected in handlePieceClick
     // And highlightValidMoves only shows valid targets based on mandatory capture rules.
     // So, we can proceed with the move.
-    movePiece(selectedPiece.row, selectedPiece.col, targetRow, targetCol, moveInfo);
+    movePiece(selectedPiece.row, selectedPiece.col, endRow, endCol, moveInfo);
 }
-
 
 function selectPiece(pieceElement, row, col, isKing) {
     deselectPiece(); // Deselect any previously selected piece
@@ -866,6 +874,7 @@ function redrawBoardFromState() {
                      // IMPORTANT: Re-assign the element reference in the board state
                      boardState[r][c].element = piece;
                      piece.addEventListener('click', handlePieceClick);
+                     piece.addEventListener('touchstart', handleTouchStart, { passive: false });
                  }
                  // Add square listeners only to dark squares
                 square.addEventListener('click', handleSquareClick);
@@ -915,6 +924,10 @@ function resetGame() {
 document.getElementById('new-game-btn').addEventListener('click', resetGame);
 document.getElementById('undo-btn').addEventListener('click', restorePreviousState);
 
+// Add touch listeners to buttons as well for better mobile UX
+document.getElementById('new-game-btn').addEventListener('touchstart', (e) => { e.preventDefault(); resetGame(); }, { passive: false });
+document.getElementById('undo-btn').addEventListener('touchstart', (e) => { e.preventDefault(); restorePreviousState(); }, { passive: false });
+
 createBoard();
 // Initial status check is now done inside the first switchPlayer call if needed,
 // but better to call it explicitly after board creation for white's first turn.
@@ -949,4 +962,170 @@ function animateMove(element, toRow, toCol) {
     setTimeout(() => {
         element.style.transform = '';
     }, 300);
-} 
+}
+
+// --- Touch Drag and Drop Handlers ---
+
+function handleTouchStart(event) {
+    // Ignore if game over, AI's turn, or already dragging
+    if (checkWinCondition() || currentPlayer === aiPlayerColor || isDragging || aiThinking) return;
+
+    const originalPieceElement = event.target;
+    const squareElement = originalPieceElement.closest('.square');
+    if (!squareElement) return;
+
+    const startRow = parseInt(squareElement.dataset.row);
+    const startCol = parseInt(squareElement.dataset.col);
+    const pieceData = boardState[startRow][startCol];
+
+    // Check if it's the correct player's piece
+    if (!pieceData || pieceData.color !== currentPlayer) return;
+
+    // Prevent default touch actions (scrolling, etc.)
+    if (event.cancelable) event.preventDefault();
+
+    // Check mandatory captures
+    if (mustCapture) {
+        const canPieceCapture = availableCaptures.some(capture => capture.startRow === startRow && capture.startCol === startCol);
+        if (!canPieceCapture) {
+            console.log("Mandatory capture: You must drag a piece that can capture.");
+            // Optionally provide visual feedback here (e.g., flash the required pieces)
+            return;
+        }
+    } else {
+        // Check if this piece has any valid moves before allowing drag
+        const possibleMoves = calculateValidMoves(startRow, startCol, pieceData.isKing);
+        if (possibleMoves.length === 0) {
+            console.log("This piece has no valid moves.");
+            return;
+        }
+    }
+
+    isDragging = true;
+
+    // Select the piece and highlight its moves
+    // Note: We don't use the global `selectedPiece` here to avoid conflicts with click selection
+    clearHighlights(); // Clear previous highlights
+    highlightValidMoves(startRow, startCol, pieceData.isKing); 
+    originalPieceElement.classList.add('selected'); // Visually mark the start
+
+    // Store data about the piece being dragged
+    draggedPieceData = {
+        element: originalPieceElement,
+        startRow: startRow,
+        startCol: startCol,
+        isKing: pieceData.isKing,
+        color: pieceData.color
+    };
+
+    // Create visual clone for dragging
+    draggedPieceElement = originalPieceElement.cloneNode(true);
+    draggedPieceElement.classList.add('dragging-piece');
+    // Ensure king status is visually cloned if needed
+    if (pieceData.isKing) {
+        draggedPieceElement.classList.add('king');
+    }
+    document.body.appendChild(draggedPieceElement);
+
+    const touch = event.changedTouches[0];
+    touchIdentifier = touch.identifier;
+    initialTouchX = touch.clientX;
+    initialTouchY = touch.clientY;
+    const rect = originalPieceElement.getBoundingClientRect();
+    initialPieceOffsetX = initialTouchX - rect.left;
+    initialPieceOffsetY = initialTouchY - rect.top;
+
+    // Position the clone
+    draggedPieceElement.style.left = `${rect.left}px`;
+    draggedPieceElement.style.top = `${rect.top}px`;
+
+    // Hide the original piece
+    originalPieceElement.classList.add('piece-hidden');
+
+    // Add document listeners for move and end
+    document.addEventListener('touchmove', handleTouchMove, { passive: false });
+    document.addEventListener('touchend', handleTouchEnd, { passive: false });
+    document.addEventListener('touchcancel', handleTouchEnd, { passive: false });
+}
+
+function handleTouchMove(event) {
+    if (!isDragging || !draggedPieceElement || !touchIdentifier) return;
+
+    const touch = Array.from(event.changedTouches).find(t => t.identifier === touchIdentifier);
+    if (!touch) return;
+
+    // Prevent scrolling
+    if (event.cancelable) event.preventDefault();
+
+    // Update clone position
+    const newX = touch.clientX - initialPieceOffsetX;
+    const newY = touch.clientY - initialPieceOffsetY;
+    draggedPieceElement.style.left = `${newX}px`;
+    draggedPieceElement.style.top = `${newY}px`;
+}
+
+function handleTouchEnd(event) {
+    if (!isDragging || !draggedPieceElement || !touchIdentifier) return;
+
+    const touch = Array.from(event.changedTouches).find(t => t.identifier === touchIdentifier);
+    if (!touch) return; // Wrong touch event
+
+    // Prevent default actions
+    if (event.cancelable) event.preventDefault();
+
+    // Cleanup listeners first
+    document.removeEventListener('touchmove', handleTouchMove);
+    document.removeEventListener('touchend', handleTouchEnd);
+    document.removeEventListener('touchcancel', handleTouchEnd);
+
+    // Get drop location
+    const endX = touch.clientX;
+    const endY = touch.clientY;
+
+    // Temporarily hide clone to find element underneath
+    draggedPieceElement.style.display = 'none';
+    const elementUnderFinger = document.elementFromPoint(endX, endY);
+    draggedPieceElement.style.display = ''; // Show again
+
+    let moveMade = false;
+    if (elementUnderFinger) {
+        const targetSquare = elementUnderFinger.closest('.square.dark'); // Ensure it's a dark square
+        if (targetSquare) {
+            const endRow = parseInt(targetSquare.dataset.row);
+            const endCol = parseInt(targetSquare.dataset.col);
+
+            // Find if this target square is one of the valid moves highlighted earlier
+            const highlightedMoves = calculateValidMoves(draggedPieceData.startRow, draggedPieceData.startCol, draggedPieceData.isKing);
+            const validMoveInfo = highlightedMoves.find(move => move.toRow === endRow && move.toCol === endCol);
+
+            if (validMoveInfo) {
+                // Execute the move
+                movePiece(draggedPieceData.startRow, draggedPieceData.startCol, endRow, endCol, validMoveInfo);
+                moveMade = true;
+            }
+        }
+    }
+
+    // Cleanup UI elements
+    if (draggedPieceElement.parentNode) {
+        document.body.removeChild(draggedPieceElement);
+    }
+    // Unhide the original piece ONLY if the move failed (if succeeded, movePiece->redraw handles it)
+    if (!moveMade && draggedPieceData && draggedPieceData.element) {
+        draggedPieceData.element.classList.remove('piece-hidden');
+        draggedPieceData.element.classList.remove('selected'); // Also remove initial selection mark
+    }
+    
+    // If the move failed, clear highlights as well
+    if(!moveMade) {
+        clearHighlights();
+    }
+
+    // Reset state
+    isDragging = false;
+    draggedPieceElement = null;
+    draggedPieceData = null;
+    touchIdentifier = null;
+}
+
+// --- End Touch Handlers --- 

@@ -8,6 +8,14 @@ class Game {
         this.selectedPieceElement = null; // Element being dragged
         this.dragStartPos = null; // { row, col } where drag started
         this.isDragging = false;
+        this.touchStartTime = 0; // For tap vs drag detection
+        this.touchStartPos = { x: 0, y: 0 }; // Initial touch position
+        this.forceTouchDrag = false; // Force touch to use manual positioning
+        this.draggedElement = null; // Clone for dragging
+        this.tapTimeout = null; // Timer for tap detection
+        this.dragThreshold = 5; // Pixels moved to trigger drag
+        this.touchDragging = false; // Whether currently dragging via touch
+        this.touchDragImage = null; // Visual element shown during touch drag
         
         // Check if random positions checkbox is checked
         const useRandomPositions = document.getElementById('random-positions-checkbox') && 
@@ -71,9 +79,6 @@ class Game {
                 // Add drop listeners to the square
                 square.addEventListener('dragover', this.handleDragOver.bind(this));
                 square.addEventListener('drop', this.handleDrop.bind(this));
-                // For touch events
-                square.addEventListener('touchmove', this.handleDragOver.bind(this)); // Simulate dragover
-                square.addEventListener('touchend', this.handleDrop.bind(this)); // Simulate drop
 
                 if (this.board[row][col]) {
                     const piece = document.createElement('div');
@@ -86,9 +91,29 @@ class Game {
                         piece.draggable = true;
                         piece.addEventListener('dragstart', (e) => this.handleDragStart(e, row, col));
                         piece.addEventListener('dragend', this.handleDragEnd.bind(this));
-                        // Touch events for dragging
-                        piece.addEventListener('touchstart', (e) => this.handleDragStart(e, row, col), { passive: false }); // Need active listener
-                        piece.addEventListener('touchend', this.handleDragEnd.bind(this));
+                        
+                        // Touch events - handled differently to avoid issues
+                        piece.addEventListener('touchstart', (e) => {
+                            // Store the starting position for potential click or drag
+                            const pieceData = this.board[row][col];
+                            if (this.isComputerTurn || this.gameOver || !pieceData || this.currentPlayer !== pieceData.color) {
+                                return;
+                            }
+                            
+                            // Record touch start time and position
+                            this.touchStartTime = Date.now();
+                            this.touchStartPos = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+                            this.dragStartPos = { row, col };
+                            this.selectedPieceElement = e.target;
+                            
+                            // Prevent default to avoid scrolling or other browser gestures
+                            e.preventDefault();
+                            
+                            // Set up touch move and end handlers
+                            document.addEventListener('touchmove', this.handleTouchMove.bind(this), { passive: false });
+                            document.addEventListener('touchend', this.handleTouchEnd.bind(this), { passive: false });
+                            document.addEventListener('touchcancel', this.handleTouchEnd.bind(this), { passive: false });
+                        }, { passive: false }); // Need non-passive listener to call preventDefault
                     }
                     
                     square.appendChild(piece);
@@ -102,14 +127,25 @@ class Game {
                     square.appendChild(traceCircle);
                 }
 
-                // Keep the click listener for selection/deselection
+                // Handle clicks for selection/movement
                 square.addEventListener('click', () => this.handleSquareClick(row, col));
+                
+                // Handle touch events for movement after selection (for the tap-then-tap approach)
+                square.addEventListener('touchstart', (e) => {
+                    if (this.selectedPiece && 
+                        this.isValidMove(this.selectedPiece.row, this.selectedPiece.col, row, col)) {
+                        e.preventDefault(); // Prevent default to avoid scrolling
+                        this.makeMove(this.selectedPiece.row, this.selectedPiece.col, row, col);
+                        if (!this.gameOver) {
+                            this.isComputerTurn = true;
+                            setTimeout(() => this.computerMove(), 500);
+                        }
+                    }
+                }, { passive: false });
+                
                 chessboard.appendChild(square);
             }
         }
-        // Add global listeners for touch move to update dragged piece position
-        document.removeEventListener('touchmove', this.handleTouchMove);
-        document.addEventListener('touchmove', this.handleTouchMove.bind(this));
         
         // Re-apply valid move highlights if a piece was selected via click
         if (this.selectedPiece) {
@@ -238,7 +274,14 @@ class Game {
     }
 
     handleSquareClick(row, col) {
-        if (this.gameOver || this.isComputerTurn || this.isDragging) return; // Ignore clicks during drag
+        // Prevent click action if a drag was just completed on this square
+        if (this.gameOver || this.isComputerTurn || this.isDragging) {
+             console.log("Click ignored: dragging or game over/computer turn");
+             // Reset isDragging here only if it was set by a short touchmove followed by touchend
+             // This might need adjustment based on testing.
+             // this.isDragging = false; 
+             return;
+        }
 
         const piece = this.board[row][col];
         
@@ -517,89 +560,66 @@ class Game {
     // --- Drag and Drop Handlers ---
 
     handleDragStart(event, row, col) {
-        // Prevent dragging if it's not the player's turn or game is over
-        if (this.isComputerTurn || this.gameOver || this.currentPlayer !== this.board[row][col]?.color) {
-            event.preventDefault();
+        const pieceData = this.board[row][col];
+        // Prevent dragging if it's not the player's turn or game is over or no piece
+        if (this.isComputerTurn || this.gameOver || !pieceData || this.currentPlayer !== pieceData.color) {
+            if (event.cancelable) event.preventDefault();
             return;
         }
         
         this.isDragging = true;
         this.dragStartPos = { row, col };
         this.selectedPiece = { row, col }; // Also select the piece being dragged
-        this.selectedPieceElement = event.target;
+        this.selectedPieceElement = event.target.closest('.piece'); // Ensure we get the piece div
         
-        // Use a timeout to allow the browser to render the drag image before hiding
+        // Use a timeout to allow the browser to render the drag image before hiding/styling
         setTimeout(() => {
-             if (this.selectedPieceElement) { // Check if element still exists
+            if (this.selectedPieceElement) {
                  this.selectedPieceElement.classList.add('dragging');
              }
         }, 0);
 
-        // For standard drag-and-drop API
         if (event.dataTransfer) {
+            try {
             event.dataTransfer.effectAllowed = 'move';
              // Set dummy data (required for Firefox)
              event.dataTransfer.setData('text/plain', ''); 
-        }
-        
-        // For touch events, prevent default scroll behavior
-        if (event.type === 'touchstart') {
-            event.preventDefault(); 
-            // Manually position the element for touch
-            this.updateDraggedElementPosition(event.touches[0].clientX, event.touches[0].clientY);
+            } catch (e) {
+                console.error("Error setting dataTransfer properties:", e);
+            }
         }
 
         this.showValidMoves(row, col); // Show valid moves on drag start
-        console.log("Drag Start:", this.dragStartPos);
     }
 
     handleDragOver(event) {
+        if (!this.isDragging) return;
+        
         event.preventDefault(); // Necessary to allow dropping
         if (event.dataTransfer) {
             event.dataTransfer.dropEffect = 'move';
-        }
-        
-        // For touch, update position
-         if (event.type === 'touchmove' && this.isDragging && this.selectedPieceElement && event.touches.length > 0) {
-             this.updateDraggedElementPosition(event.touches[0].clientX, event.touches[0].clientY);
          }
     }
 
     handleDrop(event) {
         event.preventDefault();
-        if (!this.dragStartPos || !this.isDragging) return; // Ensure drag was started
         
-        let targetSquare;
-        let toRow, toCol;
+        if (!this.dragStartPos || !this.isDragging) {
+            return; // No valid drag started
+        }
+
+        let targetSquare = event.target;
         
-        if (event.type === 'touchend') {
-            // For touch, find the element under the touch point
-             if (!this.selectedPieceElement) return;
-             this.selectedPieceElement.style.display = 'none'; // Temporarily hide dragged element
-             targetSquare = document.elementFromPoint(event.changedTouches[0].clientX, event.changedTouches[0].clientY);
-             if (this.selectedPieceElement) this.selectedPieceElement.style.display = ''; // Restore visibility
-             
-             // Find the closest square if the drop wasn't exactly on one
+        // If dropped on a piece or trace, get the parent square
              if (targetSquare && !targetSquare.classList.contains('square')) {
                  targetSquare = targetSquare.closest('.square');
-             }
-        } else {
-            // For mouse drop
-            targetSquare = event.target;
-            // If dropped on a piece or trace, get the parent square
-            if (!targetSquare.classList.contains('square')) {
-                targetSquare = targetSquare.closest('.square');
-            }
         }
 
         if (targetSquare && targetSquare.classList.contains('square')) {
-            toRow = parseInt(targetSquare.dataset.row);
-            toCol = parseInt(targetSquare.dataset.col);
-
-            console.log("Drop Attempt:", { from: this.dragStartPos, to: { toRow, toCol } });
+            const toRow = parseInt(targetSquare.dataset.row);
+            const toCol = parseInt(targetSquare.dataset.col);
 
             if (this.isValidMove(this.dragStartPos.row, this.dragStartPos.col, toRow, toCol)) {
-                console.log("Valid Drop - Making Move");
                 this.makeMove(this.dragStartPos.row, this.dragStartPos.col, toRow, toCol);
                 
                 // Trigger computer move ONLY if game is not over after player's move
@@ -608,68 +628,185 @@ class Game {
                     setTimeout(() => this.computerMove(), 500); 
                 }
             } else {
-                 console.log("Invalid Drop");
-                 // Optionally provide feedback for invalid move
-                 // Reset visual state if the drop was invalid
+                // Invalid drop - clear selection
                  this.clearHighlights();
-                 this.selectedPiece = null; // Deselect if drop was invalid
-                 if (this.selectedPieceElement) {
-                     this.selectedPieceElement.classList.remove('dragging');
-                     // Reset style properties for touch dragging
-                     this.selectedPieceElement.style.position = '';
-                     this.selectedPieceElement.style.left = '';
-                     this.selectedPieceElement.style.top = '';
-                 }
-                  this.renderBoard(); // Re-render to put piece back visually
+                this.selectedPiece = null;
             }
         } else {
-             console.log("Drop outside board or on invalid target");
-             // Reset visual state if dropped outside board
-             this.handleDragEnd(); // Use dragEnd logic to reset
+            // Dropped outside board - clear selection
+            this.clearHighlights();
+            this.selectedPiece = null;
         }
         
-        // Final cleanup regardless of drop validity
+        // Reset drag state
         this.isDragging = false;
+        if (this.selectedPieceElement) {
+            this.selectedPieceElement.classList.remove('dragging');
+        }
         this.dragStartPos = null;
+        this.selectedPieceElement = null;
     }
 
     handleDragEnd(event) {
-        // This might be called even if drop was successful, ensure cleanup
+        // Reset CSS classes
         if (this.selectedPieceElement) {
             this.selectedPieceElement.classList.remove('dragging');
-            // Reset style properties for touch dragging
-            this.selectedPieceElement.style.position = '';
-            this.selectedPieceElement.style.left = '';
-            this.selectedPieceElement.style.top = '';
         }
-        // Don't clear highlights here if move was successful, makeMove handles it.
-        // If the move was invalid or dropped outside, drop handler or this might clear.
-        if (!this.gameOver && this.isDragging) { // If drag ended prematurely (e.g., Esc key) or invalid drop handled elsewhere didn't clear
+        
+        // Reset drag state
+        this.isDragging = false;
+            this.dragStartPos = null;
+        this.selectedPieceElement = null;
+        
+        // Re-render if drag was cancelled
+        if (event.type === 'dragend') {
+            this.renderBoard();
+        }
+    }
+
+    // Touch event handlers
+    handleTouchMove(event) {
+        if (!this.dragStartPos) return;
+        
+        // Prevent scrolling and other touch gestures
+        event.preventDefault();
+        
+        const touch = event.touches[0];
+        const currentX = touch.clientX;
+        const currentY = touch.clientY;
+        
+        // Calculate how far the finger has moved
+        const deltaX = Math.abs(currentX - this.touchStartPos.x);
+        const deltaY = Math.abs(currentY - this.touchStartPos.y);
+        
+        // If movement exceeds threshold, consider it a drag
+        if (!this.touchDragging && (deltaX > this.dragThreshold || deltaY > this.dragThreshold)) {
+            this.touchDragging = true;
+            this.isDragging = true;
+            
+            // Create drag image if we don't have one yet
+            if (!this.touchDragImage) {
+                this.touchDragImage = document.createElement('div');
+                this.touchDragImage.className = 'piece touch-drag-image';
+                this.touchDragImage.textContent = '♜';
+                this.touchDragImage.style.color = this.currentPlayer === 'white' ? '#fff' : '#000';
+                this.touchDragImage.style.position = 'fixed';
+                this.touchDragImage.style.pointerEvents = 'none';
+                this.touchDragImage.style.zIndex = '1000';
+                
+                // Make it larger for mobile
+                this.touchDragImage.style.fontSize = '40px';
+                this.touchDragImage.style.width = '60px';
+                this.touchDragImage.style.height = '60px';
+                this.touchDragImage.style.display = 'flex';
+                this.touchDragImage.style.alignItems = 'center';
+                this.touchDragImage.style.justifyContent = 'center';
+                
+                document.body.appendChild(this.touchDragImage);
+                
+                // Show valid moves
+                this.showValidMoves(this.dragStartPos.row, this.dragStartPos.col);
+            }
+        }
+        
+        // If dragging, update position of drag image
+        if (this.touchDragging && this.touchDragImage) {
+            // Center the drag image under the finger
+            this.touchDragImage.style.left = `${currentX - 30}px`;
+            this.touchDragImage.style.top = `${currentY - 30}px`;
+        }
+    }
+    
+    handleTouchEnd(event) {
+        // Make a local copy of dragStartPos in case it gets modified during processing
+        const startPos = this.dragStartPos ? {...this.dragStartPos} : null;
+        
+        // Safety check - if no drag start position, just clean up and return
+        if (!startPos) {
+            this.cleanupTouchDrag();
+            return;
+        }
+        
+        // If we were dragging, handle the drop
+        if (this.touchDragging) {
+            const touch = event.changedTouches[0];
+            if (!touch) {
+                this.cleanupTouchDrag();
+                return;
+            }
+            
+            // Find the element under the finger
+            if (this.touchDragImage) {
+                this.touchDragImage.style.display = 'none'; // Temporarily hide
+            }
+            
+            const elementAtPoint = document.elementFromPoint(touch.clientX, touch.clientY);
+            
+            // Restore drag image visibility
+            if (this.touchDragImage) {
+                this.touchDragImage.style.display = '';
+            }
+            
+            // Find the square under the finger
+            let targetSquare = elementAtPoint;
+            if (targetSquare && !targetSquare.classList.contains('square')) {
+                targetSquare = targetSquare.closest('.square');
+            }
+            
+            // If we found a valid square, try to move there
+            if (targetSquare && targetSquare.classList.contains('square')) {
+                const toRow = parseInt(targetSquare.dataset.row);
+                const toCol = parseInt(targetSquare.dataset.col);
+                
+                if (this.isValidMove(startPos.row, startPos.col, toRow, toCol)) {
+                    // Clean up before making the move
+                    this.cleanupTouchDrag();
+                    
+                    // Make the move
+                    this.makeMove(startPos.row, startPos.col, toRow, toCol);
+                    
+                    // Trigger computer move if needed
+                    if (!this.gameOver) {
+                        this.isComputerTurn = true;
+                        setTimeout(() => this.computerMove(), 500);
+                    }
+                    return;
+                }
+            }
+            
+            // If we get here, drop was invalid
             this.clearHighlights();
             this.selectedPiece = null;
-            this.isDragging = false; // Ensure dragging flag is reset
-            this.dragStartPos = null;
-            this.renderBoard(); // Re-render if drag cancelled
+        } else {
+            // It was a tap, handle as simple click (using the local copy of startPos)
+            this.handleSquareClick(startPos.row, startPos.col);
         }
+        
+        // Clean up
+        this.cleanupTouchDrag();
+    }
+    
+    cleanupTouchDrag() {
+        // Remove the drag image
+        if (this.touchDragImage) {
+            try {
+                document.body.removeChild(this.touchDragImage);
+            } catch (e) {
+                console.error("Error removing touch drag image:", e);
+            }
+            this.touchDragImage = null;
+        }
+        
+        // Remove event listeners
+        document.removeEventListener('touchmove', this.handleTouchMove);
+        document.removeEventListener('touchend', this.handleTouchEnd);
+        document.removeEventListener('touchcancel', this.handleTouchEnd);
+        
+        // Reset drag state
+        this.touchDragging = false;
+        this.isDragging = false;
+        this.dragStartPos = null;
         this.selectedPieceElement = null;
-        console.log("Drag End");
-    }
-    
-    // Helper for touch dragging visuals
-    handleTouchMove(event) {
-        if (this.isDragging && this.selectedPieceElement && event.touches.length > 0) {
-             event.preventDefault(); // Prevent scrolling while dragging
-             this.updateDraggedElementPosition(event.touches[0].clientX, event.touches[0].clientY);
-         }
-    }
-    
-    updateDraggedElementPosition(x, y) {
-        if (!this.selectedPieceElement) return;
-        // Position the element centered under the finger/cursor
-        const rect = this.selectedPieceElement.getBoundingClientRect();
-        this.selectedPieceElement.style.position = 'absolute'; // Ensure absolute positioning
-        this.selectedPieceElement.style.left = `${x - rect.width / 2}px`;
-        this.selectedPieceElement.style.top = `${y - rect.height / 2}px`;
     }
 }
 

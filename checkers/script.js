@@ -408,7 +408,8 @@ function movePiece(startRow, startCol, endRow, endCol, moveInfo) {
     const pieceElement = pieceData.element;
     let becameKing = false;
 
-    // Ensure the piece is visible (remove class added during drag)
+    // Ensure the piece is visible (restore opacity after drag)
+    pieceElement.style.opacity = '1';
     pieceElement.classList.remove('piece-hidden');
 
     // 1. Clear start square
@@ -1039,11 +1040,14 @@ function handleTouchStart(event) {
     if (checkWinCondition() || currentPlayer === aiPlayerColor || isDragging || aiThinking) return;
 
     const originalPieceElement = event.target;
+    // Make sure we're touching a piece, not just any element
+    if (!originalPieceElement.classList.contains('piece')) return;
+    
     const squareElement = originalPieceElement.closest('.square');
     if (!squareElement) return;
 
-    // Prevent default touch actions (scrolling, etc.) immediately
-    if (event.cancelable) event.preventDefault();
+    // Prevent default touch actions (scrolling, etc.)
+    event.preventDefault();
 
     const startRow = parseInt(squareElement.dataset.row);
     const startCol = parseInt(squareElement.dataset.col);
@@ -1062,14 +1066,18 @@ function handleTouchStart(event) {
         return;
     }
 
-    isDragging = true;
-
+    // Set a short timer to distinguish between tap and drag
+    this.tapTimeout = setTimeout(() => {
+        // If the timeout fires, it means it's a tap (not a drag yet)
+        this.tapTimeout = null;
+    }, 150);
+    
     // Select the piece and highlight its moves
     clearHighlights();
     selectPiece(originalPieceElement, startRow, startCol, pieceData.isKing);
     highlightValidMoves(startRow, startCol, pieceData.isKing);
 
-    // Store data about the piece being dragged
+    // Store data about the piece being dragged (for potential drag)
     draggedPieceData = {
         element: originalPieceElement,
         startRow: startRow,
@@ -1078,137 +1086,231 @@ function handleTouchStart(event) {
         color: pieceData.color
     };
 
-    // Get position information first
+    // Get position information
     const rect = originalPieceElement.getBoundingClientRect();
-    const touch = event.changedTouches[0];
+    const touch = event.touches[0];
     touchIdentifier = touch.identifier;
     initialTouchX = touch.clientX;
     initialTouchY = touch.clientY;
     initialPieceOffsetX = initialTouchX - rect.left;
     initialPieceOffsetY = initialTouchY - rect.top;
 
-    // Create optimized clone for dragging
-    draggedPieceElement = originalPieceElement.cloneNode(true);
-    draggedPieceElement.classList.add('dragging-piece');
-    draggedPieceElement.style.width = `${rect.width}px`;
-    draggedPieceElement.style.height = `${rect.height}px`;
-    draggedPieceElement.style.left = `${rect.left}px`;
-    draggedPieceElement.style.top = `${rect.top}px`;
-    draggedPieceElement.style.transform = 'translate3d(0,0,0)';
-    
-    // Add crown if king more efficiently
-    if (pieceData.isKing) {
-        const crown = document.createElement('div');
-        crown.textContent = '👑';
-        crown.style.cssText = `
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            font-size: ${window.innerWidth <= 600 ? '18px' : '24px'};
-            z-index: 2;
-            text-shadow: 0 0 5px rgba(0, 0, 0, 0.5);
-            filter: drop-shadow(0 0 4px gold);
-        `;
-        draggedPieceElement.appendChild(crown);
-    }
-    
-    // Hide the original piece
-    originalPieceElement.classList.add('piece-hidden');
-    
-    // Append to body - do this last for better performance
-    document.body.appendChild(draggedPieceElement);
-
-    // Add document listeners for move and end
+    // Add document listeners for move and end (for potential drag)
     document.addEventListener('touchmove', handleTouchMove, { passive: false });
     document.addEventListener('touchend', handleTouchEnd, { passive: false });
     document.addEventListener('touchcancel', handleTouchEnd, { passive: false });
 }
 
 function handleTouchMove(event) {
-    if (!isDragging || !draggedPieceElement || !touchIdentifier) return;
+    // Clear the tap timeout - it's a drag, not a tap
+    if (this.tapTimeout) {
+        clearTimeout(this.tapTimeout);
+        this.tapTimeout = null;
+    }
 
-    const touch = Array.from(event.changedTouches).find(t => t.identifier === touchIdentifier);
+    if (!draggedPieceData) return;
+
+    // Find the specific touch that started the drag
+    const touch = Array.from(event.touches).find(t => t.identifier === touchIdentifier);
     if (!touch) return;
 
     // Prevent scrolling
-    if (event.cancelable) event.preventDefault();
+    event.preventDefault();
 
-    // Update clone position immediately without smooth transition
-    // Use requestAnimationFrame for smoother animation
-    requestAnimationFrame(() => {
-        const newX = touch.clientX - initialPieceOffsetX;
-        const newY = touch.clientY - initialPieceOffsetY;
-        draggedPieceElement.style.transition = 'none'; // Ensure no transition
-        draggedPieceElement.style.transform = 'translate3d(0,0,0)'; // Enable GPU acceleration
-        draggedPieceElement.style.left = `${newX}px`;
-        draggedPieceElement.style.top = `${newY}px`;
-    });
+    // Only create drag element on first actual move
+    if (!isDragging) {
+        isDragging = true;
+        
+        // Create the draggable element when we confirm it's a drag
+        const pieceElement = draggedPieceData.element;
+        const rect = pieceElement.getBoundingClientRect();
+        
+        draggedPieceElement = document.createElement('div');
+        draggedPieceElement.className = `piece ${draggedPieceData.color}-piece dragging-piece`;
+        if (draggedPieceData.isKing) draggedPieceElement.classList.add('king');
+        
+        draggedPieceElement.style.width = `${rect.width}px`;
+        draggedPieceElement.style.height = `${rect.height}px`;
+        draggedPieceElement.style.position = 'fixed';
+        draggedPieceElement.style.pointerEvents = 'none';
+        draggedPieceElement.style.zIndex = '1000';
+        draggedPieceElement.style.left = `${rect.left}px`;
+        draggedPieceElement.style.top = `${rect.top}px`;
+        
+        // Add crown if king
+        if (draggedPieceData.isKing) {
+            const crown = document.createElement('div');
+            crown.textContent = '👑';
+            crown.style.cssText = `
+                position: absolute;
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%, -50%);
+                font-size: ${window.innerWidth <= 600 ? '18px' : '24px'};
+                z-index: 2;
+                text-shadow: 0 0 5px rgba(0, 0, 0, 0.5);
+                filter: drop-shadow(0 0 4px gold);
+            `;
+            draggedPieceElement.appendChild(crown);
+        }
+        
+        // Hide the original piece
+        pieceElement.style.opacity = '0.3';
+        
+        // Append to body
+        document.body.appendChild(draggedPieceElement);
+    }
+
+    if (!draggedPieceElement) return;
+
+    // Get board boundaries to keep piece within board visually
+    const boardRect = boardElement.getBoundingClientRect();
+    
+    // Calculate new position
+    let newX = touch.clientX - initialPieceOffsetX;
+    let newY = touch.clientY - initialPieceOffsetY;
+    
+    // Get the element's dimensions
+    const pieceWidth = draggedPieceElement.offsetWidth;
+    const pieceHeight = draggedPieceElement.offsetHeight;
+    
+    // Keep the piece within the board boundaries
+    newX = Math.max(boardRect.left, Math.min(newX, boardRect.right - pieceWidth));
+    newY = Math.max(boardRect.top, Math.min(newY, boardRect.bottom - pieceHeight));
+    
+    // Update position
+    draggedPieceElement.style.left = `${newX}px`;
+    draggedPieceElement.style.top = `${newY}px`;
 }
 
 function handleTouchEnd(event) {
-    if (!isDragging || !draggedPieceElement || !touchIdentifier) return;
-
-    const touch = Array.from(event.changedTouches).find(t => t.identifier === touchIdentifier);
-    if (!touch) return;
-
-    // Prevent default actions
-    if (event.cancelable) event.preventDefault();
-
-    // Cleanup listeners first
-    document.removeEventListener('touchmove', handleTouchMove);
-    document.removeEventListener('touchend', handleTouchEnd);
-    document.removeEventListener('touchcancel', handleTouchEnd);
-
-    // Get drop location
-    const endX = touch.clientX;
-    const endY = touch.clientY;
-
-    // Temporarily hide clone to find element underneath
-    draggedPieceElement.style.display = 'none';
-    const elementUnderFinger = document.elementFromPoint(endX, endY);
-    draggedPieceElement.style.display = '';
-
-    let moveMade = false;
-    if (elementUnderFinger) {
-        const targetSquare = elementUnderFinger.closest('.square.dark');
-        if (targetSquare) {
-            const endRow = parseInt(targetSquare.dataset.row);
-            const endCol = parseInt(targetSquare.dataset.col);
-
-            // Find if this target square is one of the valid moves
-            const highlightedMoves = calculateValidMoves(draggedPieceData.startRow, draggedPieceData.startCol, draggedPieceData.isKing);
-            const validMoveInfo = highlightedMoves.find(move => move.toRow === endRow && move.toCol === endCol);
-
-            if (validMoveInfo) {
-                // Execute the move
-                movePiece(draggedPieceData.startRow, draggedPieceData.startCol, endRow, endCol, validMoveInfo);
-                moveMade = true;
-                // Set flag to ignore the next click event only if a move was made
-                ignoreNextClick = true;
-                setTimeout(() => { ignoreNextClick = false; }, 300);
+    // If it was just a tap (no drag started), keep the piece selected
+    if (this.tapTimeout) {
+        clearTimeout(this.tapTimeout);
+        this.tapTimeout = null;
+        
+        // Clean up listeners but don't deselect piece
+        document.removeEventListener('touchmove', handleTouchMove);
+        document.removeEventListener('touchend', handleTouchEnd);
+        document.removeEventListener('touchcancel', handleTouchEnd);
+        
+        if (!isDragging) {
+            // It was just a tap, don't deselect
+            if (draggedPieceData) {
+                // Reset drag data but keep selection
+                draggedPieceData = null;
+                touchIdentifier = null;
             }
+            return;
         }
     }
 
-    // Cleanup UI elements
-    if (draggedPieceElement.parentNode) {
+    if (!draggedPieceData) {
+        cleanupDragOperation(false);
+        return;
+    }
+
+    // If not dragging (just a tap), simply return to keep the piece selected
+    if (!isDragging || !draggedPieceElement) {
+        if (draggedPieceData && draggedPieceData.element) {
+            draggedPieceData.element.style.opacity = '1';
+        }
+        draggedPieceData = null;
+        touchIdentifier = null;
+        document.removeEventListener('touchmove', handleTouchMove);
+        document.removeEventListener('touchend', handleTouchEnd);
+        document.removeEventListener('touchcancel', handleTouchEnd);
+        return;
+    }
+
+    // Find the specific touch that ended
+    let touch;
+    for (let i = 0; i < event.changedTouches.length; i++) {
+        if (event.changedTouches[i].identifier === touchIdentifier) {
+            touch = event.changedTouches[i];
+            break;
+        }
+    }
+    
+    if (!touch) {
+        // If no matching touch found, just clean up
+        cleanupDragOperation(false);
+        return;
+    }
+
+    // Prevent default behavior
+    event.preventDefault();
+
+    // Get elements at touch position
+    const x = touch.clientX;
+    const y = touch.clientY;
+    
+    // Hide the dragged element to find what's underneath
+    if (draggedPieceElement) {
+        draggedPieceElement.style.display = 'none';
+    }
+    
+    // Get the element under the touch point
+    const targetElement = document.elementFromPoint(x, y);
+    
+    // Show the dragged element again
+    if (draggedPieceElement) {
+        draggedPieceElement.style.display = '';
+    }
+    
+    // Process the drop
+    if (targetElement) {
+        // Find the square that was touched (either directly or a child)
+        const targetSquare = targetElement.classList.contains('square') ? 
+                            targetElement : 
+                            targetElement.closest('.square');
+                
+        if (targetSquare && targetSquare.classList.contains('dark')) {
+            const endRow = parseInt(targetSquare.dataset.row);
+            const endCol = parseInt(targetSquare.dataset.col);
+            
+            // Check if this is a valid move
+            const validMoves = calculateValidMoves(draggedPieceData.startRow, draggedPieceData.startCol, draggedPieceData.isKing);
+            const validMove = validMoves.find(move => move.toRow === endRow && move.toCol === endCol);
+            
+            if (validMove) {
+                // Make the move
+                movePiece(draggedPieceData.startRow, draggedPieceData.startCol, endRow, endCol, validMove);
+                cleanupDragOperation(true); // Move was successful
+                return;
+            }
+        }
+    }
+    
+    // If we get here, the move was invalid
+    cleanupDragOperation(false);
+}
+
+// Helper function to clean up after drag operations
+function cleanupDragOperation(successful) {
+    // Remove the dragged element
+    if (draggedPieceElement && draggedPieceElement.parentNode) {
         document.body.removeChild(draggedPieceElement);
     }
     
-    // Unhide the original piece ONLY if the move failed
-    if (!moveMade && draggedPieceData && draggedPieceData.element) {
-        draggedPieceData.element.classList.remove('piece-hidden');
-        draggedPieceData.element.classList.remove('selected');
+    // Restore the original piece visibility
+    if (draggedPieceData && draggedPieceData.element) {
+        // Always restore visibility whether move was successful or not
+        draggedPieceData.element.style.opacity = '1';
     }
     
-    // If the move failed, clear highlights and deselect
-    if(!moveMade) {
+    // Clean up highlights and selection if move failed
+    if (!successful) {
         clearHighlights();
         deselectPiece();
     }
-
-    // Reset state
+    
+    // Remove event listeners
+    document.removeEventListener('touchmove', handleTouchMove);
+    document.removeEventListener('touchend', handleTouchEnd);
+    document.removeEventListener('touchcancel', handleTouchEnd);
+    
+    // Reset state variables
     isDragging = false;
     draggedPieceElement = null;
     draggedPieceData = null;
@@ -1278,7 +1380,6 @@ function handleMouseDown(event) {
     draggedPieceElement.style.height = `${rect.height}px`;
     draggedPieceElement.style.left = `${rect.left}px`;
     draggedPieceElement.style.top = `${rect.top}px`;
-    draggedPieceElement.style.transform = 'translate3d(0,0,0)';
     
     // Add crown if king more efficiently
     if (pieceData.isKing) {
@@ -1298,7 +1399,7 @@ function handleMouseDown(event) {
     }
     
     // Hide the original piece
-    originalPieceElement.classList.add('piece-hidden');
+    originalPieceElement.style.opacity = '0.3';
     
     // Append to body - do this last for better performance
     document.body.appendChild(draggedPieceElement);
@@ -1314,12 +1415,23 @@ function handleMouseMove(event) {
     // Prevent text selection during drag
     if (event.cancelable) event.preventDefault();
 
-    // Update clone position with requestAnimationFrame for improved performance
+    // Get board boundaries
+    const boardRect = boardElement.getBoundingClientRect();
+    
+    // Calculate new position
+    let newX = event.clientX - initialPieceOffsetX;
+    let newY = event.clientY - initialPieceOffsetY;
+    
+    // Get the element's dimensions
+    const pieceWidth = draggedPieceElement.offsetWidth;
+    const pieceHeight = draggedPieceElement.offsetHeight;
+    
+    // Keep the piece within the board boundaries
+    newX = Math.max(boardRect.left, Math.min(newX, boardRect.right - pieceWidth));
+    newY = Math.max(boardRect.top, Math.min(newY, boardRect.bottom - pieceHeight));
+    
+    // Update position with requestAnimationFrame for improved performance
     requestAnimationFrame(() => {
-        const newX = event.clientX - initialPieceOffsetX;
-        const newY = event.clientY - initialPieceOffsetY;
-        draggedPieceElement.style.transition = 'none'; // Ensure no transition
-        draggedPieceElement.style.transform = 'translate3d(0,0,0)'; // Enable GPU acceleration
         draggedPieceElement.style.left = `${newX}px`;
         draggedPieceElement.style.top = `${newY}px`;
     });
@@ -1371,10 +1483,9 @@ function handleMouseUp(event) {
         document.body.removeChild(draggedPieceElement);
     }
     
-    // Unhide the original piece ONLY if the move failed (if succeeded, movePiece->redraw handles it)
-    if (!moveMade && draggedPieceData && draggedPieceData.element) {
-        draggedPieceData.element.classList.remove('piece-hidden');
-        draggedPieceData.element.classList.remove('selected'); // Also remove initial selection mark
+    // Always restore visibility of the original piece
+    if (draggedPieceData && draggedPieceData.element) {
+        draggedPieceData.element.style.opacity = '1';
     }
     
     // If the move failed, clear highlights as well
@@ -1387,8 +1498,6 @@ function handleMouseUp(event) {
     isMouseDragging = false;
     draggedPieceElement = null;
     draggedPieceData = null;
-    
-    // Старый код для установки флага игнорирования удален отсюда
 }
 
 // --- End Mouse Handlers --- 
@@ -1460,4 +1569,5 @@ function applyTheme(theme) {
 }
 
 // Initialize theme on page load
+initTheme();
 initTheme();

@@ -4,6 +4,7 @@ html, body {
     height: 100%; /* Переконатись, що body займає всю висоту */
     width: 100%;  /* Переконатись, що body займає всю ширину */
     position: fixed; /* Додатково для деяких браузерів */
+    touch-action: none; /* Disable browser touch actions globally */
 }
 
 body {
@@ -107,7 +108,6 @@ button:disabled {
     box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
     overflow: hidden;
     background-color: #111;
-    touch-action: none; /* Заборона дій браузера над дошкою */
 }
 
 .square {
@@ -223,21 +223,21 @@ button:disabled {
 
 /* Style for the element being dragged */
 .dragging-piece {
-    position: absolute;
-    pointer-events: none; /* Don't interfere with touch events underneath */
-    z-index: 1000;
-    opacity: 0.8; /* Increased from 0.7 for better visibility */
-    cursor: grabbing !important; 
-    /* Встановлюємо розмір як у звичайної шашки на великому екрані */
-    width: 56px; /* 80% of 70px square */
-    height: 56px; /* 80% of 70px square */
-    border-radius: 50%;
-    box-sizing: border-box;
-    box-shadow: 0 10px 20px rgba(0, 0, 0, 0.6);
-    will-change: transform, left, top; /* Hint to browser for optimization */
-    transform: translate3d(0,0,0); /* Force GPU acceleration */
-    transition: none !important; /* Disable any transitions */
-    /* Копіюємо градієнт та рамку - додаємо колірний клас в JS */
+    position: fixed !important;
+    z-index: 1000 !important;
+    pointer-events: none !important;
+    transform-origin: center center;
+    /* Ensure smooth transition when created, but instant movement when dragging */
+    transition: none;
+    /* Make dragged piece slightly larger */
+    transform: scale(1.2);
+    /* Shadow effect to give "lifted" appearance */
+    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.5), 0 4px 8px rgba(0, 0, 0, 0.3);
+    /* Additional GPU acceleration for smoother dragging */
+    will-change: left, top;
+    touch-action: none;
+    /* Make the dragged piece more obvious */
+    filter: brightness(1.2);
 }
 
 /* Style to hide the original piece in the square while dragging */
@@ -252,15 +252,15 @@ button:disabled {
     #checkerboard {
         width: 320px;
         height: 320px;
+        border-width: 5px;
+        margin: 0 auto;
     }
     
-    /* Smaller pieces for mobile */
     .piece {
-        width: 70%;
-        height: 70%;
+        width: 85%; /* Make pieces larger to be easier to grab */
+        height: 85%;
     }
     
-    /* Smaller crown for kings on mobile */
     .king::after {
         font-size: 18px;
     }
@@ -270,25 +270,29 @@ button:disabled {
     }
     
     .game-footer {
-        width: calc(100% - 30px);
-        max-width: 320px;
+        margin-top: 15px;
     }
     
     .game-controls {
-        justify-content: center;
+        flex-wrap: wrap;
     }
     
     button {
+        padding: 12px 15px; /* Larger touch targets */
+        font-size: 16px;
+        min-width: 120px;
         margin: 5px;
-        min-width: 80px;
-        padding: 6px 10px;
-        font-size: 13px;
     }
     
-    /* Smaller dragging piece for mobile */
     .dragging-piece {
-        width: 28px; /* 70% of 40px square */
-        height: 28px; /* 70% of 40px square */
+        transform: scale(1.5); /* Even larger on mobile for better visibility */
+    }
+    
+    /* Ensure valid move indicators are more visible on mobile */
+    .valid-move::after,
+    .valid-capture::after {
+        width: 50%;
+        height: 50%;
     }
 }
 

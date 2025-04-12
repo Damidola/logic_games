@@ -396,6 +396,12 @@ function movePiece(startRow, startCol, endRow, endCol, moveInfo) {
     if (!turnInProgress) {
         saveState();
         turnInProgress = true;
+        
+        // If this is the start of a capture sequence, clear mandatory piece highlighting
+        // since the player has committed to a specific capture path
+        if (moveInfo.isCapture) {
+            clearMandatoryHighlights();
+        }
     }
 
     const pieceData = boardState[startRow][startCol];
@@ -1036,15 +1042,15 @@ function handleTouchStart(event) {
     const squareElement = originalPieceElement.closest('.square');
     if (!squareElement) return;
 
+    // Prevent default touch actions (scrolling, etc.) immediately
+    if (event.cancelable) event.preventDefault();
+
     const startRow = parseInt(squareElement.dataset.row);
     const startCol = parseInt(squareElement.dataset.col);
     const pieceData = boardState[startRow][startCol];
 
     // Check if it's the correct player's piece
     if (!pieceData || pieceData.color !== currentPlayer) return;
-
-    // Prevent default touch actions (scrolling, etc.)
-    if (event.cancelable) event.preventDefault();
 
     // Check if this piece has any valid moves
     const possibleMoves = calculateValidMoves(startRow, startCol, pieceData.isKing);
@@ -1072,45 +1078,46 @@ function handleTouchStart(event) {
         color: pieceData.color
     };
 
-    // Create visual clone for dragging
-    draggedPieceElement = originalPieceElement.cloneNode(true);
-    draggedPieceElement.classList.add('dragging-piece');
-    
-    // Set size based on original piece
-    const originalRect = originalPieceElement.getBoundingClientRect();
-    draggedPieceElement.style.width = `${originalRect.width}px`;
-    draggedPieceElement.style.height = `${originalRect.height}px`;
-    
-    // Add crown if king
-    if (pieceData.isKing) {
-        const crown = document.createElement('div');
-        crown.textContent = '👑';
-        crown.style.position = 'absolute';
-        crown.style.top = '50%';
-        crown.style.left = '50%';
-        crown.style.transform = 'translate(-50%, -50%)';
-        crown.style.fontSize = window.innerWidth <= 600 ? '18px' : '24px';
-        crown.style.zIndex = '2';
-        crown.style.textShadow = '0 0 5px rgba(0, 0, 0, 0.5)';
-        crown.style.filter = 'drop-shadow(0 0 4px gold)';
-        draggedPieceElement.appendChild(crown);
-    }
-    document.body.appendChild(draggedPieceElement);
-
+    // Get position information first
+    const rect = originalPieceElement.getBoundingClientRect();
     const touch = event.changedTouches[0];
     touchIdentifier = touch.identifier;
     initialTouchX = touch.clientX;
     initialTouchY = touch.clientY;
-    const rect = originalPieceElement.getBoundingClientRect();
     initialPieceOffsetX = initialTouchX - rect.left;
     initialPieceOffsetY = initialTouchY - rect.top;
 
-    // Position the clone
+    // Create optimized clone for dragging
+    draggedPieceElement = originalPieceElement.cloneNode(true);
+    draggedPieceElement.classList.add('dragging-piece');
+    draggedPieceElement.style.width = `${rect.width}px`;
+    draggedPieceElement.style.height = `${rect.height}px`;
     draggedPieceElement.style.left = `${rect.left}px`;
     draggedPieceElement.style.top = `${rect.top}px`;
-
+    draggedPieceElement.style.transform = 'translate3d(0,0,0)';
+    
+    // Add crown if king more efficiently
+    if (pieceData.isKing) {
+        const crown = document.createElement('div');
+        crown.textContent = '👑';
+        crown.style.cssText = `
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: ${window.innerWidth <= 600 ? '18px' : '24px'};
+            z-index: 2;
+            text-shadow: 0 0 5px rgba(0, 0, 0, 0.5);
+            filter: drop-shadow(0 0 4px gold);
+        `;
+        draggedPieceElement.appendChild(crown);
+    }
+    
     // Hide the original piece
     originalPieceElement.classList.add('piece-hidden');
+    
+    // Append to body - do this last for better performance
+    document.body.appendChild(draggedPieceElement);
 
     // Add document listeners for move and end
     document.addEventListener('touchmove', handleTouchMove, { passive: false });
@@ -1127,12 +1134,16 @@ function handleTouchMove(event) {
     // Prevent scrolling
     if (event.cancelable) event.preventDefault();
 
-    // Update clone position with smooth movement
-    const newX = touch.clientX - initialPieceOffsetX;
-    const newY = touch.clientY - initialPieceOffsetY;
-    draggedPieceElement.style.transition = 'none'; // Disable transition during drag
-    draggedPieceElement.style.left = `${newX}px`;
-    draggedPieceElement.style.top = `${newY}px`;
+    // Update clone position immediately without smooth transition
+    // Use requestAnimationFrame for smoother animation
+    requestAnimationFrame(() => {
+        const newX = touch.clientX - initialPieceOffsetX;
+        const newY = touch.clientY - initialPieceOffsetY;
+        draggedPieceElement.style.transition = 'none'; // Ensure no transition
+        draggedPieceElement.style.transform = 'translate3d(0,0,0)'; // Enable GPU acceleration
+        draggedPieceElement.style.left = `${newX}px`;
+        draggedPieceElement.style.top = `${newY}px`;
+    });
 }
 
 function handleTouchEnd(event) {
@@ -1212,8 +1223,8 @@ function handleMouseDown(event) {
     // Ignore if game over, AI's turn, or already dragging
     if (checkWinCondition() || currentPlayer === aiPlayerColor || isDragging || isMouseDragging || aiThinking) return;
 
-    // Stop click event propagation
-    // event.stopPropagation();
+    // Prevent default behavior immediately
+    if (event.cancelable) event.preventDefault();
     
     const originalPieceElement = event.target;
     const squareElement = originalPieceElement.closest('.square');
@@ -1225,9 +1236,6 @@ function handleMouseDown(event) {
 
     // Check if it's the correct player's piece
     if (!pieceData || pieceData.color !== currentPlayer) return;
-
-    // Prevent default behavior (text selection, etc.)
-    if (event.cancelable) event.preventDefault();
     
     // Check if this piece has any valid moves (captures prioritized by calculateValidMoves)
     const possibleMoves = calculateValidMoves(startRow, startCol, pieceData.isKing);
@@ -1245,8 +1253,6 @@ function handleMouseDown(event) {
     // Select the piece and highlight its moves
     clearHighlights();
     selectPiece(originalPieceElement, startRow, startCol, pieceData.isKing);
-    
-    // Дополнительно подсвечиваем возможные ходы (хотя selectPiece уже делает это)
     highlightValidMoves(startRow, startCol, pieceData.isKing);
 
     // Store data about the piece being dragged
@@ -1258,48 +1264,47 @@ function handleMouseDown(event) {
         color: pieceData.color
     };
 
-    // Create visual clone for dragging
-    draggedPieceElement = originalPieceElement.cloneNode(true);
-    draggedPieceElement.classList.add('dragging-piece');
-    
-    // Set size based on original piece
-    const originalRect = originalPieceElement.getBoundingClientRect();
-    draggedPieceElement.style.width = `${originalRect.width}px`;
-    draggedPieceElement.style.height = `${originalRect.height}px`;
-    
-    // Ensure king status is visually cloned if needed
-    if (pieceData.isKing) {
-        // Add crown directly instead of using ::after pseudo-element
-        const crown = document.createElement('div');
-        crown.textContent = '👑';
-        crown.style.position = 'absolute';
-        crown.style.top = '50%';
-        crown.style.left = '50%';
-        crown.style.transform = 'translate(-50%, -50%)';
-        crown.style.fontSize = window.innerWidth <= 600 ? '18px' : '24px';
-        crown.style.zIndex = '2';
-        crown.style.textShadow = '0 0 5px rgba(0, 0, 0, 0.5)';
-        crown.style.filter = 'drop-shadow(0 0 4px gold)';
-        draggedPieceElement.appendChild(crown);
-    }
-    document.body.appendChild(draggedPieceElement);
-
-    // Store initial mouse position and offset
+    // Get position information first
+    const rect = originalPieceElement.getBoundingClientRect();
     initialTouchX = event.clientX;
     initialTouchY = event.clientY;
-    const rect = originalPieceElement.getBoundingClientRect();
     initialPieceOffsetX = initialTouchX - rect.left;
     initialPieceOffsetY = initialTouchY - rect.top;
 
-    // Position the clone
+    // Create optimized clone for dragging
+    draggedPieceElement = originalPieceElement.cloneNode(true);
+    draggedPieceElement.classList.add('dragging-piece');
+    draggedPieceElement.style.width = `${rect.width}px`;
+    draggedPieceElement.style.height = `${rect.height}px`;
     draggedPieceElement.style.left = `${rect.left}px`;
     draggedPieceElement.style.top = `${rect.top}px`;
-
+    draggedPieceElement.style.transform = 'translate3d(0,0,0)';
+    
+    // Add crown if king more efficiently
+    if (pieceData.isKing) {
+        const crown = document.createElement('div');
+        crown.textContent = '👑';
+        crown.style.cssText = `
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: ${window.innerWidth <= 600 ? '18px' : '24px'};
+            z-index: 2;
+            text-shadow: 0 0 5px rgba(0, 0, 0, 0.5);
+            filter: drop-shadow(0 0 4px gold);
+        `;
+        draggedPieceElement.appendChild(crown);
+    }
+    
     // Hide the original piece
     originalPieceElement.classList.add('piece-hidden');
+    
+    // Append to body - do this last for better performance
+    document.body.appendChild(draggedPieceElement);
 
     // Add document listeners for mouse movements and release
-    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mousemove', handleMouseMove, { passive: false });
     document.addEventListener('mouseup', handleMouseUp);
 }
 
@@ -1309,11 +1314,15 @@ function handleMouseMove(event) {
     // Prevent text selection during drag
     if (event.cancelable) event.preventDefault();
 
-    // Update clone position
-    const newX = event.clientX - initialPieceOffsetX;
-    const newY = event.clientY - initialPieceOffsetY;
-    draggedPieceElement.style.left = `${newX}px`;
-    draggedPieceElement.style.top = `${newY}px`;
+    // Update clone position with requestAnimationFrame for improved performance
+    requestAnimationFrame(() => {
+        const newX = event.clientX - initialPieceOffsetX;
+        const newY = event.clientY - initialPieceOffsetY;
+        draggedPieceElement.style.transition = 'none'; // Ensure no transition
+        draggedPieceElement.style.transform = 'translate3d(0,0,0)'; // Enable GPU acceleration
+        draggedPieceElement.style.left = `${newX}px`;
+        draggedPieceElement.style.top = `${newY}px`;
+    });
 }
 
 function handleMouseUp(event) {
@@ -1383,3 +1392,72 @@ function handleMouseUp(event) {
 }
 
 // --- End Mouse Handlers --- 
+
+// --- Theme Handling ---
+const themeBtn = document.getElementById('theme-btn');
+const themeDropdown = document.getElementById('theme-dropdown');
+const themeOptions = document.querySelectorAll('.theme-option');
+let currentTheme = 'default';
+
+// Check if a theme is stored in localStorage
+function initTheme() {
+    const savedTheme = localStorage.getItem('checkers-theme');
+    if (savedTheme) {
+        applyTheme(savedTheme);
+    }
+    
+    // Mark the current theme as active in the dropdown
+    themeOptions.forEach(option => {
+        if (option.dataset.theme === currentTheme) {
+            option.classList.add('active');
+        } else {
+            option.classList.remove('active');
+        }
+    });
+}
+
+// Toggle the theme dropdown
+themeBtn.addEventListener('click', (event) => {
+    themeDropdown.classList.toggle('active');
+    event.stopPropagation();
+});
+
+// Close the dropdown if clicked outside
+document.addEventListener('click', (event) => {
+    if (!themeBtn.contains(event.target) && !themeDropdown.contains(event.target)) {
+        themeDropdown.classList.remove('active');
+    }
+});
+
+// Handle theme selection
+themeOptions.forEach(option => {
+    option.addEventListener('click', () => {
+        const theme = option.dataset.theme;
+        applyTheme(theme);
+        themeDropdown.classList.remove('active');
+        
+        // Update active state in dropdown
+        themeOptions.forEach(opt => opt.classList.remove('active'));
+        option.classList.add('active');
+    });
+});
+
+// Apply the selected theme
+function applyTheme(theme) {
+    // Remove previous theme class
+    document.body.classList.remove(`theme-${currentTheme}`);
+    
+    if (theme !== 'default') {
+        // Add new theme class
+        document.body.classList.add(`theme-${theme}`);
+    }
+    
+    // Update current theme
+    currentTheme = theme;
+    
+    // Save to localStorage
+    localStorage.setItem('checkers-theme', theme);
+}
+
+// Initialize theme on page load
+initTheme();

@@ -2,7 +2,7 @@
 <html lang="uk">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <title>Шашки | Логічна гра</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -19,6 +19,16 @@
             <div class="game-controls">
                 <button id="new-game-btn">Нова гра</button>
                 <button id="undo-btn">Скасувати хід</button>
+                <div class="theme-selector">
+                    <button id="theme-btn">Змінити тему</button>
+                    <div class="theme-dropdown" id="theme-dropdown">
+                        <div class="theme-option" data-theme="default">Класична</div>
+                        <div class="theme-option" data-theme="dark">Темна</div>
+                        <div class="theme-option" data-theme="wooden">Дерев'яна</div>
+                        <div class="theme-option" data-theme="blue">Синя</div>
+                        <div class="theme-option" data-theme="neon">Неонова</div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>

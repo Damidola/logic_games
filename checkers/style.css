@@ -1,3 +1,11 @@
+html, body {
+    overflow: hidden; /* Заборона прокрутки */
+    overscroll-behavior: none; /* Заборона "гумового" ефекту */
+    height: 100%; /* Переконатись, що body займає всю висоту */
+    width: 100%;  /* Переконатись, що body займає всю ширину */
+    position: fixed; /* Додатково для деяких браузерів */
+}
+
 body {
     font-family: 'Roboto', 'Segoe UI', Arial, sans-serif;
     display: flex;
@@ -34,12 +42,13 @@ h1 {
     letter-spacing: 2px;
 }
 
-.controls {
+.game-controls {
     display: flex;
     gap: 10px;
     align-items: center;
     justify-content: center;
     width: 100%; /* Take full width of footer */
+    flex-wrap: nowrap; /* Prevent wrapping to new line */
 }
 
 button {
@@ -98,6 +107,7 @@ button:disabled {
     box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
     overflow: hidden;
     background-color: #111;
+    touch-action: none; /* Заборона дій браузера над дошкою */
 }
 
 .square {
@@ -125,7 +135,7 @@ button:disabled {
     cursor: grab;
     box-sizing: border-box;
     z-index: 1;
-    transition: all 0.2s ease;
+    transition: transform 0.1s ease; /* Reduced from 0.2s */
     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.5);
 }
 
@@ -216,15 +226,18 @@ button:disabled {
     position: absolute;
     pointer-events: none; /* Don't interfere with touch events underneath */
     z-index: 1000;
-    opacity: 0.7;
-    transform: none; /* No scaling */
-    cursor: grabbing !important; /* Override any other cursor styles */
-    /* Inherit base styles */
-    width: 48px; /* Fixed width instead of percentage */
-    height: 48px; /* Fixed height instead of percentage */
+    opacity: 0.8; /* Increased from 0.7 for better visibility */
+    cursor: grabbing !important; 
+    /* Встановлюємо розмір як у звичайної шашки на великому екрані */
+    width: 56px; /* 80% of 70px square */
+    height: 56px; /* 80% of 70px square */
     border-radius: 50%;
     box-sizing: border-box;
     box-shadow: 0 10px 20px rgba(0, 0, 0, 0.6);
+    will-change: transform, left, top; /* Hint to browser for optimization */
+    transform: translate3d(0,0,0); /* Force GPU acceleration */
+    transition: none !important; /* Disable any transitions */
+    /* Копіюємо градієнт та рамку - додаємо колірний клас в JS */
 }
 
 /* Style to hide the original piece in the square while dragging */
@@ -261,8 +274,7 @@ button:disabled {
         max-width: 320px;
     }
     
-    .controls {
-        flex-wrap: wrap;
+    .game-controls {
         justify-content: center;
     }
     
@@ -271,6 +283,12 @@ button:disabled {
         min-width: 80px;
         padding: 6px 10px;
         font-size: 13px;
+    }
+    
+    /* Smaller dragging piece for mobile */
+    .dragging-piece {
+        width: 28px; /* 70% of 40px square */
+        height: 28px; /* 70% of 40px square */
     }
 }
 
@@ -339,4 +357,252 @@ button:disabled {
 /* Make modal visible when active */
 .modal.active {
     display: flex;
+}
+
+/* Theme Selector Styles */
+.theme-selector {
+    position: relative;
+    display: inline-block;
+    margin-left: 10px;
+}
+
+#theme-btn {
+    background: linear-gradient(to bottom, #6c5ce7, #5e52bd);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+#theme-btn::after {
+    content: "🎨";
+    margin-left: 5px;
+    font-size: 16px;
+}
+
+#theme-btn:hover {
+    background: linear-gradient(to bottom, #5e52bd, #4c44a6);
+}
+
+.theme-dropdown {
+    display: none;
+    position: absolute;
+    bottom: 110%;
+    right: 0;
+    background: rgba(0, 0, 0, 0.85);
+    border-radius: 8px;
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.5);
+    z-index: 100;
+    min-width: 160px;
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.3s ease-out;
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.theme-dropdown.active {
+    display: block;
+    max-height: 300px;
+}
+
+.theme-option {
+    padding: 12px 15px;
+    cursor: pointer;
+    color: white;
+    transition: all 0.2s;
+    font-size: 14px;
+    text-align: left;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.theme-option:last-child {
+    border-bottom: none;
+}
+
+.theme-option:hover {
+    background: rgba(255, 255, 255, 0.1);
+    transform: translateX(5px);
+}
+
+.theme-option.active {
+    font-weight: bold;
+    background: rgba(255, 255, 255, 0.15);
+}
+
+.theme-option::before {
+    content: "";
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    margin-right: 8px;
+    vertical-align: middle;
+}
+
+.theme-option[data-theme="default"]::before {
+    background: linear-gradient(135deg, #b58863, #f0d9b5);
+}
+
+.theme-option[data-theme="dark"]::before {
+    background: linear-gradient(135deg, #2c2c2c, #5c5c5c);
+}
+
+.theme-option[data-theme="wooden"]::before {
+    background: linear-gradient(135deg, #8B4513, #DEB887);
+}
+
+.theme-option[data-theme="blue"]::before {
+    background: linear-gradient(135deg, #1e3a8a, #93c5fd);
+}
+
+.theme-option[data-theme="neon"]::before {
+    background: linear-gradient(135deg, #170638, #331f63);
+}
+
+/* Theme Definitions */
+
+/* Default Theme (already defined in main styles) */
+:root {
+    --dark-square: #b58863;
+    --light-square: #f0d9b5;
+    --white-piece-bg: radial-gradient(circle at 30% 30%, #ffffff, #d0d0d0);
+    --white-piece-border: #999;
+    --black-piece-bg: radial-gradient(circle at 30% 30%, #444, #111);
+    --black-piece-border: #000;
+    --board-border: #333;
+    --page-bg: linear-gradient(135deg, #2c3e50, #3498db);
+    --valid-move: rgba(46, 204, 113, 0.6);
+    --valid-capture: rgba(231, 76, 60, 0.6);
+    --mandatory-piece: #ff4136;
+    --selected-border: #ffd700;
+    --selected-shadow: 0 0 15px #ffd700, 0 0 30px rgba(255, 215, 0, 0.5);
+}
+
+/* Dark Theme - Black pieces changed to Red */
+body.theme-dark {
+    --dark-square: #4a4a4a; /* Darker gray */
+    --light-square: #8c8c8c; /* Lighter gray */
+    --white-piece-bg: radial-gradient(circle at 30% 30%, #e0e0e0, #b0b0b0); /* Lighter white pieces */
+    --white-piece-border: #757575;
+    /* Red pieces instead of black */
+    --black-piece-bg: radial-gradient(circle at 30% 30%, #d32f2f, #b71c1c); /* Bright red to dark red */
+    --black-piece-border: #8a0000; /* Darker red border */
+    --board-border: #212121; /* Almost black border */
+    --page-bg: linear-gradient(135deg, #1a1a1a, #333333); /* Dark background */
+    --valid-move: rgba(66, 165, 245, 0.7); /* Blue for valid moves */
+    --valid-capture: rgba(255, 167, 38, 0.7); /* Orange for captures */
+    --mandatory-piece: #ef5350; /* Lighter red for mandatory highlight */
+    --selected-border: #42a5f5; /* Bright blue selection */
+    --selected-shadow: 0 0 15px #42a5f5, 0 0 30px rgba(66, 165, 245, 0.5);
+}
+
+/* Wooden Theme - Refined colors */
+body.theme-wooden {
+    --dark-square: #a0522d; /* Sienna - slightly darker brown */
+    --light-square: #f5deb3; /* Wheat - lighter wood */
+    --white-piece-bg: radial-gradient(circle at 30% 30%, #fff8dc, #d2b48c); /* Cornsilk to Tan */
+    --white-piece-border: #8b4513; /* SaddleBrown */
+    --black-piece-bg: radial-gradient(circle at 30% 30%, #5d4037, #3e2723); /* Dark brown */
+    --black-piece-border: #3e2723; /* Darkest brown */
+    --board-border: #6d4c41; /* Brown 700 */
+    --page-bg: linear-gradient(135deg, #4e342e, #8d6e63); /* Dark brown to lighter brown */
+    --valid-move: rgba(100, 181, 246, 0.7); /* Light blue for valid */
+    --valid-capture: rgba(255, 183, 77, 0.7); /* Amber for capture */
+    --mandatory-piece: #ff7043; /* Deep Orange */
+    --selected-border: #ffee58; /* Yellow */
+    --selected-shadow: 0 0 15px #ffee58, 0 0 30px rgba(255, 238, 88, 0.5);
+}
+
+/* Blue Theme - Enhanced contrast */
+body.theme-blue {
+    --dark-square: #0d47a1; /* Darker blue */
+    --light-square: #bbdefb; /* Lighter blue */
+    --white-piece-bg: radial-gradient(circle at 30% 30%, #e3f2fd, #90caf9); /* Very light blue to light blue */
+    --white-piece-border: #42a5f5; /* Medium blue border */
+    --black-piece-bg: radial-gradient(circle at 30% 30%, #1565c0, #0d47a1); /* Medium blue to dark blue */
+    --black-piece-border: #0d47a1;
+    --board-border: #1976d2; /* Slightly lighter border */
+    --page-bg: linear-gradient(135deg, #0a2a4d, #1e88e5); /* Dark blue to medium blue */
+    --valid-move: rgba(129, 212, 250, 0.7); /* Cyan */
+    --valid-capture: rgba(255, 209, 128, 0.7); /* Light Orange */
+    --mandatory-piece: #ef5350; /* Red for mandatory */
+    --selected-border: #80d8ff; /* Light Cyan selection */
+    --selected-shadow: 0 0 15px #80d8ff, 0 0 30px rgba(128, 216, 255, 0.5);
+}
+
+/* Neon Theme - More vibrant, changed dark pieces */
+body.theme-neon {
+    --dark-square: #2a0a4a; /* Dark purple */
+    --light-square: #5a1f8a; /* Lighter purple */
+    --white-piece-bg: radial-gradient(circle at 30% 30%, #f5f5f5, #d1c4e9); /* White to light purple */
+    --white-piece-border: #b39ddb; /* Medium purple */
+    /* Changed dark pieces from purple to cyan/teal */
+    --black-piece-bg: radial-gradient(circle at 30% 30%, #00e5ff, #00b8d4); /* Electric Blue to Dark Cyan */
+    --black-piece-border: #00838f; /* Darker Cyan */
+    --board-border: #7e57c2; /* Deep Purple */
+    --page-bg: linear-gradient(135deg, #1a0033, #6a1b9a); /* Dark purple to purple */
+    --valid-move: rgba(57, 255, 20, 0.7);  /* Neon Green */
+    --valid-capture: rgba(255, 105, 180, 0.7); /* Neon Pink */
+    --mandatory-piece: #ff1493; /* Deep Pink */
+    --selected-border: #00e5ff; /* Electric Blue */
+    --selected-shadow: 0 0 15px #00e5ff, 0 0 30px rgba(0, 229, 255, 0.5);
+}
+
+/* Apply themes to elements */
+body {
+    background: var(--page-bg);
+}
+
+.light {
+    background-color: var(--light-square);
+}
+
+.dark {
+    background-color: var(--dark-square);
+}
+
+.white-piece {
+    background: var(--white-piece-bg);
+    border: 2px solid var(--white-piece-border);
+}
+
+.black-piece {
+    background: var(--black-piece-bg);
+    border: 2px solid var(--black-piece-border);
+}
+
+#checkerboard {
+    border: 8px solid var(--board-border);
+}
+
+.valid-move::after {
+    background-color: var(--valid-move);
+}
+
+.valid-capture::after {
+    background-color: var(--valid-capture);
+}
+
+.mandatory-capture-piece {
+    border: 3px solid var(--mandatory-piece) !important;
+    box-shadow: 0 0 10px var(--mandatory-piece);
+}
+
+.selected {
+    border: 3px solid var(--selected-border);
+    box-shadow: var(--selected-shadow);
+}
+
+/* Adjust for mobile */
+@media (max-width: 600px) {
+    .theme-selector {
+        margin-left: 10px; /* Keep margin even on mobile */
+    }
+    
+    button {
+        margin: 5px;
+        min-width: 80px;
+        padding: 6px 10px;
+        font-size: 13px;
+    }
 } 

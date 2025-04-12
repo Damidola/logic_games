@@ -36,7 +36,7 @@
             background-color: var(--container-bg);
             border-radius: 25px;
             box-shadow: 0 15px 35px rgba(0, 0, 0, 0.3), 0 5px 15px rgba(0,0,0,0.2);
-            max-width: 800px;
+            max-width: 1000px; /* Increased max-width */
             width: 95%;
             margin-top: 2rem;
             border: 1px solid var(--card-border);
@@ -54,7 +54,8 @@
 
         .games-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            /* Adjust grid columns for more games */
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
             gap: 2rem;
             margin-top: 2.5rem;
         }
@@ -92,6 +93,19 @@
         /* Optional: Add icons (requires icon font/library) */
         /* .game-card::before { content: '\icon-code'; font-family: 'IconFont'; ... } */
 
+        @media (max-width: 768px) { /* Adjust breakpoint */
+            h1 {
+                font-size: 2.5rem;
+            }
+            .games-grid {
+                grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+                gap: 1.5rem;
+            }
+            .container {
+                padding: 1.5rem;
+            }
+        }
+
         @media (max-width: 600px) {
              h1 {
                 font-size: 2.2rem;
@@ -103,15 +117,12 @@
             .game-card {
                 padding: 1.5rem;
             }
-             .container {
-                 padding: 1.5rem;
-            }
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1> Логічні ігри</h1>
+        <h1>🧠 Логічні ігри</h1>
         <div class="games-grid">
             <a href="pawns/index.html" class="game-card">
                 <h2 class="game-title">♟️ Пішаки</h2>
@@ -123,10 +134,17 @@
                  <h2 class="game-title">⚫⚪ Шашки</h2>               
             </a>
             <a href="chushki/index.html" class="game-card">
-                <h2 class="game-title">🎮 Чешки</h2>
+                <h2 class="game-title">🐗 Чешки</h2>
             </a>
-
-        
+            <a href="tictac/index.html" class="game-card">
+                <h2 class="game-title">❌⭕ Хрестики-Нолики</h2>
+            </a>
+            <a href="chess/index.html" class="game-card">
+                <h2 class="game-title">♔♕ Шахи</h2>
+            </a>
+            <a href="wolfs/index.html" class="game-card">
+                <h2 class="game-title">🐺🐑 Вовк та Вівці</h2>
+            </a>
         </div>
     </div>
 </body>

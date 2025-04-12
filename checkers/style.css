@@ -122,7 +122,7 @@ button:disabled {
     width: 80%;
     height: 80%;
     border-radius: 50%;
-    cursor: pointer;
+    cursor: grab;
     box-sizing: border-box;
     z-index: 1;
     transition: all 0.2s ease;
@@ -141,6 +141,7 @@ button:disabled {
 
 .piece:hover {
     transform: scale(1.05);
+    cursor: grab;
 }
 
 .king::after {
@@ -216,11 +217,11 @@ button:disabled {
     pointer-events: none; /* Don't interfere with touch events underneath */
     z-index: 1000;
     opacity: 0.7;
-    transform: scale(1.15); /* Make it slightly larger */
-    cursor: grabbing;
+    transform: none; /* No scaling */
+    cursor: grabbing !important; /* Override any other cursor styles */
     /* Inherit base styles */
-    width: 80%; 
-    height: 80%;
+    width: 48px; /* Fixed width instead of percentage */
+    height: 48px; /* Fixed height instead of percentage */
     border-radius: 50%;
     box-sizing: border-box;
     box-shadow: 0 10px 20px rgba(0, 0, 0, 0.6);
@@ -238,6 +239,17 @@ button:disabled {
     #checkerboard {
         width: 320px;
         height: 320px;
+    }
+    
+    /* Smaller pieces for mobile */
+    .piece {
+        width: 70%;
+        height: 70%;
+    }
+    
+    /* Smaller crown for kings on mobile */
+    .king::after {
+        font-size: 18px;
     }
     
     h1 {
@@ -278,4 +290,53 @@ button:disabled {
     font-size: 1.1rem;
     margin: 0;
     color: rgba(255, 255, 255, 0.9);
+}
+
+/* Game Result Modal Styles */
+.modal {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.7);
+    z-index: 1000;
+    justify-content: center;
+    align-items: center;
+}
+
+.modal-content {
+    background-color: #fff;
+    padding: 2rem;
+    border-radius: 10px;
+    text-align: center;
+    max-width: 80%;
+    box-shadow: 0 0 20px rgba(0, 0, 0, 0.3);
+}
+
+.modal-content h2 {
+    margin: 0 0 1.5rem 0;
+    color: #333;
+    font-size: 2rem;
+}
+
+#modal-new-game-btn {
+    background-color: #4CAF50;
+    color: white;
+    border: none;
+    padding: 0.8rem 1.5rem;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 1.1rem;
+    transition: background-color 0.3s;
+}
+
+#modal-new-game-btn:hover {
+    background-color: #45a049;
+}
+
+/* Make modal visible when active */
+.modal.active {
+    display: flex;
 } 

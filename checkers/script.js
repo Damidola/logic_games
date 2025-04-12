@@ -23,10 +23,40 @@ let initialTouchX = 0;
 let initialTouchY = 0;
 let initialPieceOffsetX = 0;
 let initialPieceOffsetY = 0;
+let isMouseDragging = false; // Flag to track mouse drag state
+let ignoreNextClick = false; // Flag to prevent click after drag release
 
 // --- Game Mode ---
 let aiPlayerColor = 'black'; // AI plays as black by default
 let aiThinking = false; // Track when AI is calculating its move
+
+// Add modal elements
+const gameResultModal = document.getElementById('game-result-modal');
+const gameResultText = document.getElementById('game-result-text');
+const modalNewGameBtn = document.getElementById('modal-new-game-btn');
+
+// Function to show game result
+function showGameResult(winner) {
+    const isPlayerWinner = (winner === 'white' && aiPlayerColor === 'black') || 
+                          (winner === 'black' && aiPlayerColor === 'white');
+    
+    gameResultText.textContent = isPlayerWinner ? 'Ти виграв! 🎉' : 'Ти програв :(';
+    gameResultModal.classList.add('active');
+    
+    // Disable board interaction
+    boardElement.style.pointerEvents = 'none';
+}
+
+// Function to hide game result
+function hideGameResult() {
+    gameResultModal.classList.remove('active');
+}
+
+// Add event listener for modal new game button
+modalNewGameBtn.addEventListener('click', () => {
+    hideGameResult();
+    resetGame();
+});
 
 // *** SIMPLIFIED AI LOGIC - ALL IN ONE FILE ***
 function makeAIMove() {
@@ -223,9 +253,19 @@ function addPiece(squareElement, color, row, col) {
     boardState[row][col] = { color: color, isKing: false, element: piece };
     piece.addEventListener('click', handlePieceClick);
     piece.addEventListener('touchstart', handleTouchStart, { passive: false });
+    piece.addEventListener('mousedown', handleMouseDown, { passive: false });
 }
 
 function handlePieceClick(event) {
+    // Don't process clicks when dragging
+    if (isDragging || isMouseDragging) return;
+
+    // Ignore click if it was triggered after a drag release
+    if (ignoreNextClick) {
+        ignoreNextClick = false;
+        return;
+    }
+
     event.stopPropagation(); // Prevent square click event from firing
     const pieceElement = event.target;
     const squareElement = pieceElement.parentElement;
@@ -258,31 +298,51 @@ function handlePieceClick(event) {
 }
 
 function handleSquareClick(event) {
-    // Ignore clicks if dragging or no piece is selected (by click)
-    if (isDragging || !selectedPiece || aiThinking) return;
+    // Проверяем, попытка ли это хода или выбора шашки
+    const squareElement = event.target.closest('.square');
+    if (!squareElement) return;
 
-    const squareElement = event.target;
-    const endRow = parseInt(squareElement.dataset.row);
-    const endCol = parseInt(squareElement.dataset.col);
+    // Если перетаскивание активно, игнорируем клики
+    // или если это клик сразу после перетаскивания
+    if (isDragging || isMouseDragging || aiThinking || ignoreNextClick) {
+        if (ignoreNextClick) ignoreNextClick = false; // Сбросить флаг, если он был причиной
+        return;
+    }
+
+    const clickedRow = parseInt(squareElement.dataset.row);
+    const clickedCol = parseInt(squareElement.dataset.col);
+    
+    // Проверяем, есть ли на клетке шашка текущего игрока
+    const pieceData = boardState[clickedRow]?.[clickedCol];
+    if (pieceData && pieceData.color === currentPlayer) {
+        // Если кликнули на свою шашку, выбираем её и показываем возможные ходы
+        const pieceElement = squareElement.querySelector('.piece');
+        if (pieceElement) {
+            handlePieceClick({ target: pieceElement, stopPropagation: () => {} });
+            return;
+        }
+    }
+    
+    // Если нет выбранной шашки, нечего делать дальше
+    if (!selectedPiece) return;
 
     // Check if this square has valid move data stored
     if (!squareElement.dataset.moveInfo) {
-         console.log("Invalid move target (no move info)");
-         // If clicking an invalid square AFTER selecting a piece that MUST capture, keep it selected.
-         // Otherwise, deselect.
-         const pieceMustMove = mustCapture && availableCaptures.some(capInfo => capInfo.startRow === selectedPiece.row && capInfo.startCol === selectedPiece.col);
-         if (!pieceMustMove) {
-             deselectPiece();
-         }
-         return;
-     }
+        console.log("Invalid move target (no move info)");
+        // If clicking an invalid square AFTER selecting a piece that MUST capture, keep it selected.
+        // Otherwise, deselect.
+        const pieceMustMove = mustCapture && availableCaptures.some(capInfo => 
+            capInfo.startRow === selectedPiece.row && capInfo.startCol === selectedPiece.col);
+        if (!pieceMustMove) {
+            deselectPiece();
+        }
+        return;
+    }
 
     const moveInfo = JSON.parse(squareElement.dataset.moveInfo);
-
-    // We already validated that this piece *can* be selected in handlePieceClick
-    // And highlightValidMoves only shows valid targets based on mandatory capture rules.
-    // So, we can proceed with the move.
-    movePiece(selectedPiece.row, selectedPiece.col, endRow, endCol, moveInfo);
+    
+    // Execute the move
+    movePiece(selectedPiece.row, selectedPiece.col, clickedRow, clickedCol, moveInfo);
 }
 
 function selectPiece(pieceElement, row, col, isKing) {
@@ -341,6 +401,9 @@ function movePiece(startRow, startCol, endRow, endCol, moveInfo) {
     const pieceData = boardState[startRow][startCol];
     const pieceElement = pieceData.element;
     let becameKing = false;
+
+    // Ensure the piece is visible (remove class added during drag)
+    pieceElement.classList.remove('piece-hidden');
 
     // 1. Clear start square
     boardState[startRow][startCol] = null;
@@ -742,9 +805,7 @@ function checkWinCondition() {
     if (possibleMoves.length === 0) {
         const winner = currentPlayer === 'white' ? 'Black' : 'White';
         console.log(`Game Over! ${winner} wins!`);
-        alert(`Game Over! ${winner} wins!`);
-        // TODO: Disable further moves or add a reset button
-        boardElement.style.pointerEvents = 'none'; // Simple way to stop interaction
+        showGameResult(winner === 'White' ? 'white' : 'black');
         return true;
     }
     return false;
@@ -875,6 +936,7 @@ function redrawBoardFromState() {
                      boardState[r][c].element = piece;
                      piece.addEventListener('click', handlePieceClick);
                      piece.addEventListener('touchstart', handleTouchStart, { passive: false });
+                     piece.addEventListener('mousedown', handleMouseDown, { passive: false });
                  }
                  // Add square listeners only to dark squares
                 square.addEventListener('click', handleSquareClick);
@@ -984,30 +1046,22 @@ function handleTouchStart(event) {
     // Prevent default touch actions (scrolling, etc.)
     if (event.cancelable) event.preventDefault();
 
-    // Check mandatory captures
-    if (mustCapture) {
-        const canPieceCapture = availableCaptures.some(capture => capture.startRow === startRow && capture.startCol === startCol);
-        if (!canPieceCapture) {
-            console.log("Mandatory capture: You must drag a piece that can capture.");
-            // Optionally provide visual feedback here (e.g., flash the required pieces)
-            return;
+    // Check if this piece has any valid moves
+    const possibleMoves = calculateValidMoves(startRow, startCol, pieceData.isKing);
+    if (possibleMoves.length === 0) {
+        console.log("This piece has no valid moves.");
+        if (mustCapture) {
+            highlightMandatoryPieces();
         }
-    } else {
-        // Check if this piece has any valid moves before allowing drag
-        const possibleMoves = calculateValidMoves(startRow, startCol, pieceData.isKing);
-        if (possibleMoves.length === 0) {
-            console.log("This piece has no valid moves.");
-            return;
-        }
+        return;
     }
 
     isDragging = true;
 
     // Select the piece and highlight its moves
-    // Note: We don't use the global `selectedPiece` here to avoid conflicts with click selection
-    clearHighlights(); // Clear previous highlights
-    highlightValidMoves(startRow, startCol, pieceData.isKing); 
-    originalPieceElement.classList.add('selected'); // Visually mark the start
+    clearHighlights();
+    selectPiece(originalPieceElement, startRow, startCol, pieceData.isKing);
+    highlightValidMoves(startRow, startCol, pieceData.isKing);
 
     // Store data about the piece being dragged
     draggedPieceData = {
@@ -1021,9 +1075,25 @@ function handleTouchStart(event) {
     // Create visual clone for dragging
     draggedPieceElement = originalPieceElement.cloneNode(true);
     draggedPieceElement.classList.add('dragging-piece');
-    // Ensure king status is visually cloned if needed
+    
+    // Set size based on original piece
+    const originalRect = originalPieceElement.getBoundingClientRect();
+    draggedPieceElement.style.width = `${originalRect.width}px`;
+    draggedPieceElement.style.height = `${originalRect.height}px`;
+    
+    // Add crown if king
     if (pieceData.isKing) {
-        draggedPieceElement.classList.add('king');
+        const crown = document.createElement('div');
+        crown.textContent = '👑';
+        crown.style.position = 'absolute';
+        crown.style.top = '50%';
+        crown.style.left = '50%';
+        crown.style.transform = 'translate(-50%, -50%)';
+        crown.style.fontSize = window.innerWidth <= 600 ? '18px' : '24px';
+        crown.style.zIndex = '2';
+        crown.style.textShadow = '0 0 5px rgba(0, 0, 0, 0.5)';
+        crown.style.filter = 'drop-shadow(0 0 4px gold)';
+        draggedPieceElement.appendChild(crown);
     }
     document.body.appendChild(draggedPieceElement);
 
@@ -1057,9 +1127,10 @@ function handleTouchMove(event) {
     // Prevent scrolling
     if (event.cancelable) event.preventDefault();
 
-    // Update clone position
+    // Update clone position with smooth movement
     const newX = touch.clientX - initialPieceOffsetX;
     const newY = touch.clientY - initialPieceOffsetY;
+    draggedPieceElement.style.transition = 'none'; // Disable transition during drag
     draggedPieceElement.style.left = `${newX}px`;
     draggedPieceElement.style.top = `${newY}px`;
 }
@@ -1068,7 +1139,7 @@ function handleTouchEnd(event) {
     if (!isDragging || !draggedPieceElement || !touchIdentifier) return;
 
     const touch = Array.from(event.changedTouches).find(t => t.identifier === touchIdentifier);
-    if (!touch) return; // Wrong touch event
+    if (!touch) return;
 
     // Prevent default actions
     if (event.cancelable) event.preventDefault();
@@ -1085,11 +1156,188 @@ function handleTouchEnd(event) {
     // Temporarily hide clone to find element underneath
     draggedPieceElement.style.display = 'none';
     const elementUnderFinger = document.elementFromPoint(endX, endY);
-    draggedPieceElement.style.display = ''; // Show again
+    draggedPieceElement.style.display = '';
 
     let moveMade = false;
     if (elementUnderFinger) {
-        const targetSquare = elementUnderFinger.closest('.square.dark'); // Ensure it's a dark square
+        const targetSquare = elementUnderFinger.closest('.square.dark');
+        if (targetSquare) {
+            const endRow = parseInt(targetSquare.dataset.row);
+            const endCol = parseInt(targetSquare.dataset.col);
+
+            // Find if this target square is one of the valid moves
+            const highlightedMoves = calculateValidMoves(draggedPieceData.startRow, draggedPieceData.startCol, draggedPieceData.isKing);
+            const validMoveInfo = highlightedMoves.find(move => move.toRow === endRow && move.toCol === endCol);
+
+            if (validMoveInfo) {
+                // Execute the move
+                movePiece(draggedPieceData.startRow, draggedPieceData.startCol, endRow, endCol, validMoveInfo);
+                moveMade = true;
+                // Set flag to ignore the next click event only if a move was made
+                ignoreNextClick = true;
+                setTimeout(() => { ignoreNextClick = false; }, 300);
+            }
+        }
+    }
+
+    // Cleanup UI elements
+    if (draggedPieceElement.parentNode) {
+        document.body.removeChild(draggedPieceElement);
+    }
+    
+    // Unhide the original piece ONLY if the move failed
+    if (!moveMade && draggedPieceData && draggedPieceData.element) {
+        draggedPieceData.element.classList.remove('piece-hidden');
+        draggedPieceData.element.classList.remove('selected');
+    }
+    
+    // If the move failed, clear highlights and deselect
+    if(!moveMade) {
+        clearHighlights();
+        deselectPiece();
+    }
+
+    // Reset state
+    isDragging = false;
+    draggedPieceElement = null;
+    draggedPieceData = null;
+    touchIdentifier = null;
+}
+
+// --- End Touch Handlers --- 
+
+// --- Mouse Drag and Drop Handlers ---
+
+function handleMouseDown(event) {
+    // Ignore if game over, AI's turn, or already dragging
+    if (checkWinCondition() || currentPlayer === aiPlayerColor || isDragging || isMouseDragging || aiThinking) return;
+
+    // Stop click event propagation
+    // event.stopPropagation();
+    
+    const originalPieceElement = event.target;
+    const squareElement = originalPieceElement.closest('.square');
+    if (!squareElement) return;
+
+    const startRow = parseInt(squareElement.dataset.row);
+    const startCol = parseInt(squareElement.dataset.col);
+    const pieceData = boardState[startRow][startCol];
+
+    // Check if it's the correct player's piece
+    if (!pieceData || pieceData.color !== currentPlayer) return;
+
+    // Prevent default behavior (text selection, etc.)
+    if (event.cancelable) event.preventDefault();
+    
+    // Check if this piece has any valid moves (captures prioritized by calculateValidMoves)
+    const possibleMoves = calculateValidMoves(startRow, startCol, pieceData.isKing);
+    if (possibleMoves.length === 0) {
+        console.log("This piece has no valid moves (or cannot start/continue mandatory capture).");
+        // Optionally provide visual feedback here
+        if (mustCapture) {
+            highlightMandatoryPieces(); // Re-highlight required pieces
+        }
+        return; // Prevent drag if no moves are possible from here
+    }
+
+    isMouseDragging = true;
+
+    // Select the piece and highlight its moves
+    clearHighlights();
+    selectPiece(originalPieceElement, startRow, startCol, pieceData.isKing);
+    
+    // Дополнительно подсвечиваем возможные ходы (хотя selectPiece уже делает это)
+    highlightValidMoves(startRow, startCol, pieceData.isKing);
+
+    // Store data about the piece being dragged
+    draggedPieceData = {
+        element: originalPieceElement,
+        startRow: startRow,
+        startCol: startCol,
+        isKing: pieceData.isKing,
+        color: pieceData.color
+    };
+
+    // Create visual clone for dragging
+    draggedPieceElement = originalPieceElement.cloneNode(true);
+    draggedPieceElement.classList.add('dragging-piece');
+    
+    // Set size based on original piece
+    const originalRect = originalPieceElement.getBoundingClientRect();
+    draggedPieceElement.style.width = `${originalRect.width}px`;
+    draggedPieceElement.style.height = `${originalRect.height}px`;
+    
+    // Ensure king status is visually cloned if needed
+    if (pieceData.isKing) {
+        // Add crown directly instead of using ::after pseudo-element
+        const crown = document.createElement('div');
+        crown.textContent = '👑';
+        crown.style.position = 'absolute';
+        crown.style.top = '50%';
+        crown.style.left = '50%';
+        crown.style.transform = 'translate(-50%, -50%)';
+        crown.style.fontSize = window.innerWidth <= 600 ? '18px' : '24px';
+        crown.style.zIndex = '2';
+        crown.style.textShadow = '0 0 5px rgba(0, 0, 0, 0.5)';
+        crown.style.filter = 'drop-shadow(0 0 4px gold)';
+        draggedPieceElement.appendChild(crown);
+    }
+    document.body.appendChild(draggedPieceElement);
+
+    // Store initial mouse position and offset
+    initialTouchX = event.clientX;
+    initialTouchY = event.clientY;
+    const rect = originalPieceElement.getBoundingClientRect();
+    initialPieceOffsetX = initialTouchX - rect.left;
+    initialPieceOffsetY = initialTouchY - rect.top;
+
+    // Position the clone
+    draggedPieceElement.style.left = `${rect.left}px`;
+    draggedPieceElement.style.top = `${rect.top}px`;
+
+    // Hide the original piece
+    originalPieceElement.classList.add('piece-hidden');
+
+    // Add document listeners for mouse movements and release
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+}
+
+function handleMouseMove(event) {
+    if (!isMouseDragging || !draggedPieceElement) return;
+
+    // Prevent text selection during drag
+    if (event.cancelable) event.preventDefault();
+
+    // Update clone position
+    const newX = event.clientX - initialPieceOffsetX;
+    const newY = event.clientY - initialPieceOffsetY;
+    draggedPieceElement.style.left = `${newX}px`;
+    draggedPieceElement.style.top = `${newY}px`;
+}
+
+function handleMouseUp(event) {
+    if (!isMouseDragging || !draggedPieceElement) return;
+
+    // Prevent default actions
+    if (event.cancelable) event.preventDefault();
+
+    // Cleanup listeners first
+    document.removeEventListener('mousemove', handleMouseMove);
+    document.removeEventListener('mouseup', handleMouseUp);
+
+    // Get drop location
+    const endX = event.clientX;
+    const endY = event.clientY;
+
+    // Temporarily hide clone to find element underneath
+    draggedPieceElement.style.display = 'none';
+    const elementUnderMouse = document.elementFromPoint(endX, endY);
+    draggedPieceElement.style.display = '';
+
+    let moveMade = false;
+    if (elementUnderMouse) {
+        const targetSquare = elementUnderMouse.closest('.square.dark'); // Ensure it's a dark square
         if (targetSquare) {
             const endRow = parseInt(targetSquare.dataset.row);
             const endCol = parseInt(targetSquare.dataset.col);
@@ -1102,6 +1350,9 @@ function handleTouchEnd(event) {
                 // Execute the move
                 movePiece(draggedPieceData.startRow, draggedPieceData.startCol, endRow, endCol, validMoveInfo);
                 moveMade = true;
+                 // Set flag to ignore the next click event only if a move was made
+                 ignoreNextClick = true;
+                 setTimeout(() => { ignoreNextClick = false; }, 300); // Reset after a short delay
             }
         }
     }
@@ -1110,6 +1361,7 @@ function handleTouchEnd(event) {
     if (draggedPieceElement.parentNode) {
         document.body.removeChild(draggedPieceElement);
     }
+    
     // Unhide the original piece ONLY if the move failed (if succeeded, movePiece->redraw handles it)
     if (!moveMade && draggedPieceData && draggedPieceData.element) {
         draggedPieceData.element.classList.remove('piece-hidden');
@@ -1119,13 +1371,15 @@ function handleTouchEnd(event) {
     // If the move failed, clear highlights as well
     if(!moveMade) {
         clearHighlights();
+        deselectPiece(); // Also deselect if move failed
     }
 
     // Reset state
-    isDragging = false;
+    isMouseDragging = false;
     draggedPieceElement = null;
     draggedPieceData = null;
-    touchIdentifier = null;
+    
+    // Старый код для установки флага игнорирования удален отсюда
 }
 
-// --- End Touch Handlers --- 
+// --- End Mouse Handlers --- 

@@ -22,6 +22,19 @@
             </label>
         </div>
     </div>
+
+    <div class="victory-window" id="victory-window">
+        <h2>Ти виграв!</h2>
+        <p>Вітаємо з перемогою!</p>
+        <button onclick="currentGame.startNewGame()">Грати знову</button>
+    </div>
+
+    <div class="victory-window defeat" id="defeat-window">
+        <h2>Ти програв!</h2>
+        <p>Спробуй ще раз!</p>
+        <button onclick="currentGame.startNewGame()">Грати знову</button>
+    </div>
+
     <script src="game.js"></script>
 </body>
 </html> 

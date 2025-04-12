@@ -16,10 +16,18 @@
         </div>
         <div id="checkerboard" class="checkerboard"></div>
         <div class="game-footer">
-            <div class="controls">
+            <div class="game-controls">
                 <button id="new-game-btn">Нова гра</button>
-                <button id="undo-btn">Назад</button>
+                <button id="undo-btn">Скасувати хід</button>
             </div>
+        </div>
+    </div>
+    
+    <!-- Add modal window for game result -->
+    <div id="game-result-modal" class="modal">
+        <div class="modal-content">
+            <h2 id="game-result-text"></h2>
+            <button id="modal-new-game-btn">Нова гра</button>
         </div>
     </div>
     <script src="script.js"></script>

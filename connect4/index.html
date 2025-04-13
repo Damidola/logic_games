@@ -1,0 +1,749 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Чотири в ряд</title>
+    <style>
+        :root {
+            --board-color: #1a1a2e;
+            --empty-cell: #30475e;
+            --player-color: #e94560;
+            --ai-color: #4ecca3;
+            --border-radius: 50%;
+            --bg-color: #121212;
+            --text-color: #f0f0f0;
+            --card-bg: #222831;
+            --win-highlight: #ffd700;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Arial', sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            background-color: var(--bg-color);
+            padding: 20px;
+            color: var(--text-color);
+        }
+
+        h1 {
+            margin-bottom: 20px;
+            color: var(--text-color);
+            text-align: center;
+        }
+
+        .board-container {
+            position: relative;
+            width: 100%;
+            max-width: 500px;
+        }
+
+        .board {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            grid-gap: 5px;
+            padding: 10px;
+            background-color: var(--board-color);
+            border-radius: 10px;
+            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.3);
+        }
+
+        .column {
+            display: flex;
+            flex-direction: column-reverse;
+            cursor: pointer;
+        }
+
+        .cell {
+            width: 100%;
+            aspect-ratio: 1;
+            border-radius: var(--border-radius);
+            background-color: var(--empty-cell);
+            margin: 5px 0;
+            transition: background-color 0.3s ease;
+        }
+
+        .player {
+            background-color: var(--player-color);
+            animation: drop 0.5s ease;
+        }
+
+        .ai {
+            background-color: var(--ai-color);
+            animation: drop 0.5s ease;
+        }
+
+        .win-cell {
+            box-shadow: 0 0 0 3px var(--win-highlight);
+            animation: pulse 1s infinite alternate;
+        }
+
+        @keyframes pulse {
+            0% {
+                box-shadow: 0 0 0 3px var(--win-highlight);
+            }
+            100% {
+                box-shadow: 0 0 0 6px var(--win-highlight);
+            }
+        }
+
+        @keyframes drop {
+            0% {
+                transform: translateY(-60vh);
+            }
+            70% {
+                transform: translateY(5%);
+            }
+            85% {
+                transform: translateY(-2%);
+            }
+            100% {
+                transform: translateY(0);
+            }
+        }
+
+        .controls {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            display: flex;
+            gap: 10px;
+        }
+
+        button {
+            padding: 10px 15px;
+            border: none;
+            background-color: #30475e;
+            color: var(--text-color);
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: background-color 0.2s;
+        }
+
+        button:hover, button:focus {
+            background-color: #446687;
+        }
+
+        .menu-button {
+            width: 40px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            padding: 0;
+            background-color: #444;
+        }
+
+        .menu-dots {
+            display: flex;
+            gap: 4px;
+        }
+
+        .menu-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background-color: var(--text-color);
+        }
+
+        .menu-dot.active {
+            background-color: #4ecca3;
+        }
+
+        .menu-dot.hidden {
+            display: none;
+        }
+
+        .difficulty-indicator {
+            position: absolute;
+            top: 50px;
+            right: 0;
+            background-color: var(--card-bg);
+            border-radius: 5px;
+            padding: 5px 10px;
+            font-size: 14px;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+        }
+
+        .difficulty-indicator.show {
+            opacity: 1;
+        }
+
+        .game-controls {
+            position: fixed;
+            bottom: 20px;
+            left: 0;
+            right: 0;
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+        }
+
+        .undo-button {
+            padding: 10px 15px;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .undo-icon {
+            width: 16px;
+            height: 16px;
+            border: 2px solid var(--text-color);
+            border-top: none;
+            border-right: none;
+            transform: rotate(45deg);
+            margin-top: -4px;
+        }
+
+        .game-over {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.8);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 100;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s ease;
+        }
+
+        .game-over.active {
+            opacity: 1;
+            pointer-events: all;
+        }
+
+        .game-over-content {
+            background-color: var(--card-bg);
+            padding: 30px;
+            border-radius: 10px;
+            text-align: center;
+            max-width: 90%;
+        }
+
+        .game-over h2 {
+            margin-bottom: 20px;
+            color: var(--text-color);
+        }
+
+        /* Media queries for better mobile support */
+        @media (max-width: 500px) {
+            .board {
+                grid-gap: 3px;
+                padding: 5px;
+            }
+            
+            .cell {
+                margin: 3px 0;
+            }
+            
+            h1 {
+                font-size: 24px;
+            }
+        }
+
+        @media (max-width: 350px) {
+            .board {
+                grid-gap: 2px;
+                padding: 3px;
+            }
+            
+            .cell {
+                margin: 2px 0;
+            }
+        }
+    </style>
+</head>
+<body>
+    <h1>Чотири в ряд</h1>
+    
+    <div class="board-container">
+        <div class="board" id="board">
+            <!-- The game board will be created by JavaScript -->
+        </div>
+    </div>
+    
+    <div class="controls">
+        <button id="new-game">Нова гра</button>
+        <button class="menu-button" id="difficulty-button">
+            <div class="menu-dots">
+                <span class="menu-dot active"></span>
+                <span class="menu-dot hidden"></span>
+                <span class="menu-dot hidden"></span>
+            </div>
+        </button>
+        <div class="difficulty-indicator" id="difficulty-indicator">
+            Легкий рівень
+        </div>
+    </div>
+    
+    <div class="game-controls">
+        <button class="undo-button" id="undo-button">
+            <span class="undo-icon"></span>
+            Назад
+        </button>
+    </div>
+    
+    <div class="game-over" id="game-over">
+        <div class="game-over-content">
+            <h2 id="winner-message">Ви перемогли!</h2>
+            <button id="play-again">Грати знову</button>
+        </div>
+    </div>
+
+    <script>
+        // Game constants
+        const ROWS = 6;
+        const COLS = 7;
+        const EMPTY = 0;
+        const PLAYER = 1;
+        const AI = 2;
+        const WIN_LENGTH = 4;
+        
+        // Game state
+        let board = [];
+        let moveHistory = [];
+        let currentPlayer = PLAYER;
+        let gameOver = false;
+        let difficulty = 'easy'; // Default difficulty
+        
+        // DOM elements
+        const boardElement = document.getElementById('board');
+        const newGameButton = document.getElementById('new-game');
+        const gameOverElement = document.getElementById('game-over');
+        const winnerMessage = document.getElementById('winner-message');
+        const playAgainButton = document.getElementById('play-again');
+        const difficultyButton = document.getElementById('difficulty-button');
+        const difficultyIndicator = document.getElementById('difficulty-indicator');
+        const undoButton = document.getElementById('undo-button');
+        const menuDots = document.querySelectorAll('.menu-dot');
+
+        // Difficulty levels and their names in Ukrainian
+        const difficultyLevels = ['easy', 'medium', 'hard'];
+        const difficultyNames = {
+            'easy': 'Легкий рівень',
+            'medium': 'Середній рівень',
+            'hard': 'Складний рівень'
+        };
+        
+        // Initialize the game
+        function initGame() {
+            // Create empty board
+            board = Array(ROWS).fill().map(() => Array(COLS).fill(EMPTY));
+            moveHistory = [];
+            
+            // Reset game state
+            currentPlayer = PLAYER;
+            gameOver = false;
+            
+            // Clear the board UI
+            boardElement.innerHTML = '';
+            
+            // Create board columns and cells
+            for (let col = 0; col < COLS; col++) {
+                const column = document.createElement('div');
+                column.className = 'column';
+                column.dataset.col = col;
+                column.addEventListener('click', () => makeMove(col));
+                
+                for (let row = 0; row < ROWS; row++) {
+                    const cell = document.createElement('div');
+                    cell.className = 'cell';
+                    cell.dataset.row = row;
+                    cell.dataset.col = col;
+                    column.appendChild(cell);
+                }
+                
+                boardElement.appendChild(column);
+            }
+            
+            // Hide game over screen
+            gameOverElement.classList.remove('active');
+            
+            // Update the undo button
+            updateUndoButton();
+            
+            // Update difficulty dots
+            updateDifficultyDots();
+        }
+        
+        // Update the board UI
+        function updateBoard() {
+            for (let row = 0; row < ROWS; row++) {
+                for (let col = 0; col < COLS; col++) {
+                    const cell = boardElement.querySelector(`.column[data-col="${col}"] .cell[data-row="${row}"]`);
+                    
+                    if (board[row][col] === PLAYER) {
+                        cell.classList.add('player');
+                        cell.classList.remove('ai');
+                    } else if (board[row][col] === AI) {
+                        cell.classList.add('ai');
+                        cell.classList.remove('player');
+                    } else {
+                        cell.classList.remove('player', 'ai');
+                    }
+                    
+                    // Remove any win highlighting
+                    cell.classList.remove('win-cell');
+                }
+            }
+            
+            // Disable columns that are full by removing click event
+            for (let col = 0; col < COLS; col++) {
+                const column = boardElement.querySelector(`.column[data-col="${col}"]`);
+                if (!isValidMove(col) || gameOver) {
+                    column.style.cursor = 'not-allowed';
+                } else {
+                    column.style.cursor = 'pointer';
+                }
+            }
+            
+            // Update the undo button
+            updateUndoButton();
+        }
+        
+        // Check if a move is valid
+        function isValidMove(col) {
+            return board[ROWS - 1][col] === EMPTY;
+        }
+        
+        // Get the row where the piece will land
+        function getNextOpenRow(col) {
+            for (let row = 0; row < ROWS; row++) {
+                if (board[row][col] === EMPTY) {
+                    return row;
+                }
+            }
+            return -1;
+        }
+        
+        // Make a move
+        function makeMove(col) {
+            if (gameOver || !isValidMove(col)) return;
+            
+            const row = getNextOpenRow(col);
+            if (row === -1) return;
+            
+            // Save move to history
+            moveHistory.push({
+                row: row,
+                col: col,
+                player: currentPlayer
+            });
+            
+            board[row][col] = currentPlayer;
+            updateBoard();
+            
+            // Check for win
+            const winResult = checkWin(row, col);
+            if (winResult.win) {
+                // Highlight the winning cells
+                highlightWinningCells(winResult.cells);
+                
+                // Show win message after a delay
+                setTimeout(() => {
+                    gameOver = true;
+                    winnerMessage.textContent = currentPlayer === PLAYER ? 'Ви перемогли!' : 'Робот переміг!';
+                    gameOverElement.classList.add('active');
+                }, 1000);
+                
+                return;
+            }
+            
+            if (checkDraw()) {
+                gameOver = true;
+                winnerMessage.textContent = 'Нічия!';
+                gameOverElement.classList.add('active');
+                return;
+            }
+            
+            currentPlayer = currentPlayer === PLAYER ? AI : PLAYER;
+            
+            // If AI's turn, make AI move
+            if (currentPlayer === AI) {
+                setTimeout(makeAIMove, 500);
+            }
+        }
+        
+        // Highlight winning cells
+        function highlightWinningCells(cells) {
+            cells.forEach(({row, col}) => {
+                const cell = boardElement.querySelector(`.column[data-col="${col}"] .cell[data-row="${row}"]`);
+                cell.classList.add('win-cell');
+            });
+        }
+        
+        // AI move
+        function makeAIMove() {
+            if (gameOver) return;
+            
+            let col;
+            
+            // Choose column based on difficulty
+            switch (difficulty) {
+                case 'easy':
+                    col = makeRandomMove();
+                    break;
+                case 'medium':
+                    // 50% chance of making a smart move
+                    col = Math.random() < 0.5 ? makeSmartMove() : makeRandomMove();
+                    break;
+                case 'hard':
+                    col = makeSmartMove();
+                    break;
+                default:
+                    col = makeRandomMove();
+            }
+            
+            makeMove(col);
+        }
+        
+        // Make a random valid move
+        function makeRandomMove() {
+            const validCols = [];
+            for (let col = 0; col < COLS; col++) {
+                if (isValidMove(col)) {
+                    validCols.push(col);
+                }
+            }
+            
+            if (validCols.length === 0) return -1;
+            return validCols[Math.floor(Math.random() * validCols.length)];
+        }
+        
+        // Make a smarter move
+        function makeSmartMove() {
+            // First check if AI can win in one move
+            for (let col = 0; col < COLS; col++) {
+                if (!isValidMove(col)) continue;
+                
+                const row = getNextOpenRow(col);
+                // Simulate the move
+                board[row][col] = AI;
+                
+                // Check if this would be a winning move
+                if (checkWin(row, col).win) {
+                    // Undo simulation
+                    board[row][col] = EMPTY;
+                    return col;
+                }
+                
+                // Undo simulation
+                board[row][col] = EMPTY;
+            }
+            
+            // Then check if player can win in one move, and block
+            for (let col = 0; col < COLS; col++) {
+                if (!isValidMove(col)) continue;
+                
+                const row = getNextOpenRow(col);
+                // Simulate player move
+                board[row][col] = PLAYER;
+                
+                // Check if this would be a winning move for player
+                if (checkWin(row, col).win) {
+                    // Undo simulation
+                    board[row][col] = EMPTY;
+                    return col;
+                }
+                
+                // Undo simulation
+                board[row][col] = EMPTY;
+            }
+            
+            // Otherwise, prefer center columns
+            const preferredCols = [3, 2, 4, 1, 5, 0, 6];
+            for (const col of preferredCols) {
+                if (isValidMove(col)) {
+                    return col;
+                }
+            }
+            
+            // Fallback to random
+            return makeRandomMove();
+        }
+        
+        // Check for a win and return winning cells
+        function checkWin(row, col) {
+            const player = board[row][col];
+            let winningCells = [];
+            
+            // Check horizontal
+            let count = 0;
+            let cells = [];
+            for (let c = 0; c < COLS; c++) {
+                if (board[row][c] === player) {
+                    count++;
+                    cells.push({row, col: c});
+                    if (count >= WIN_LENGTH) {
+                        return {win: true, cells: cells.slice(-WIN_LENGTH)};
+                    }
+                } else {
+                    count = 0;
+                    cells = [];
+                }
+            }
+            
+            // Check vertical
+            count = 0;
+            cells = [];
+            for (let r = 0; r < ROWS; r++) {
+                if (board[r][col] === player) {
+                    count++;
+                    cells.push({row: r, col});
+                    if (count >= WIN_LENGTH) {
+                        return {win: true, cells: cells.slice(-WIN_LENGTH)};
+                    }
+                } else {
+                    count = 0;
+                    cells = [];
+                }
+            }
+            
+            // Check diagonal (top-left to bottom-right)
+            for (let r = 0; r <= ROWS - WIN_LENGTH; r++) {
+                for (let c = 0; c <= COLS - WIN_LENGTH; c++) {
+                    let match = true;
+                    cells = [];
+                    for (let i = 0; i < WIN_LENGTH; i++) {
+                        if (board[r + i][c + i] !== player) {
+                            match = false;
+                            break;
+                        }
+                        cells.push({row: r + i, col: c + i});
+                    }
+                    if (match) return {win: true, cells};
+                }
+            }
+            
+            // Check diagonal (bottom-left to top-right)
+            for (let r = WIN_LENGTH - 1; r < ROWS; r++) {
+                for (let c = 0; c <= COLS - WIN_LENGTH; c++) {
+                    let match = true;
+                    cells = [];
+                    for (let i = 0; i < WIN_LENGTH; i++) {
+                        if (board[r - i][c + i] !== player) {
+                            match = false;
+                            break;
+                        }
+                        cells.push({row: r - i, col: c + i});
+                    }
+                    if (match) return {win: true, cells};
+                }
+            }
+            
+            return {win: false, cells: []};
+        }
+        
+        // Check for a draw
+        function checkDraw() {
+            for (let col = 0; col < COLS; col++) {
+                if (isValidMove(col)) {
+                    return false;
+                }
+            }
+            return true;
+        }
+        
+        // Undo the last move (go back two moves to get back to player's turn)
+        function undoMove() {
+            if (moveHistory.length === 0 || gameOver) return;
+            
+            // If AI's turn, undo player's last move
+            if (currentPlayer === AI && moveHistory.length > 0) {
+                const lastMove = moveHistory.pop();
+                board[lastMove.row][lastMove.col] = EMPTY;
+                currentPlayer = PLAYER;
+            }
+            // If player's turn, undo both AI's and player's last moves
+            else if (currentPlayer === PLAYER) {
+                // If there's at least one move, undo it (AI's move)
+                if (moveHistory.length > 0) {
+                    const aiMove = moveHistory.pop();
+                    board[aiMove.row][aiMove.col] = EMPTY;
+                }
+                
+                // If there's another move, undo it too (player's previous move)
+                if (moveHistory.length > 0) {
+                    const playerMove = moveHistory.pop();
+                    board[playerMove.row][playerMove.col] = EMPTY;
+                }
+                
+                // Still player's turn
+                currentPlayer = PLAYER;
+            }
+            
+            // Update the board
+            updateBoard();
+        }
+        
+        // Update the undo button enabled/disabled state
+        function updateUndoButton() {
+            undoButton.disabled = moveHistory.length === 0 || gameOver;
+            undoButton.style.opacity = moveHistory.length === 0 || gameOver ? '0.5' : '1';
+        }
+        
+        // Update difficulty dots based on current difficulty
+        function updateDifficultyDots() {
+            const dotsToShow = difficulty === 'easy' ? 1 : difficulty === 'medium' ? 2 : 3;
+            
+            menuDots.forEach((dot, index) => {
+                if (index < dotsToShow) {
+                    dot.classList.add('active');
+                    dot.classList.remove('hidden');
+                } else {
+                    dot.classList.remove('active');
+                    dot.classList.add('hidden');
+                }
+            });
+        }
+        
+        // Cycle through difficulty levels
+        function cycleDifficulty() {
+            const currentIndex = difficultyLevels.indexOf(difficulty);
+            const nextIndex = (currentIndex + 1) % difficultyLevels.length;
+            difficulty = difficultyLevels[nextIndex];
+            
+            // Update indicator text
+            difficultyIndicator.textContent = difficultyNames[difficulty];
+            
+            // Show indicator briefly
+            difficultyIndicator.classList.add('show');
+            setTimeout(() => {
+                difficultyIndicator.classList.remove('show');
+            }, 1500);
+            
+            // Update dots - simply show/hide without animation
+            updateDifficultyDots();
+        }
+        
+        // Event listeners
+        newGameButton.addEventListener('click', initGame);
+        playAgainButton.addEventListener('click', initGame);
+        undoButton.addEventListener('click', undoMove);
+        
+        // Difficulty button
+        difficultyButton.addEventListener('click', cycleDifficulty);
+        
+        // Initialize the game
+        initGame();
+    </script>
+</body>
+</html>

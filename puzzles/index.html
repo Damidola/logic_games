@@ -1,0 +1,767 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PGN Parser & LaTeX PDF Link Generator</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            padding: 20px;
+            background-color: #f7f9fc;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .container {
+            background-color: #fff;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+            width: 90%;
+            max-width: 900px;
+            margin-bottom: 20px;
+        }
+        h1, h2 {
+            color: #2c3e50;
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 600;
+            color: #3a4a5d;
+        }
+        textarea, input[type="text"], input[type="number"] {
+            width: 100%;
+            padding: 12px;
+            margin-bottom: 15px;
+            border: 1px solid #dde2e8;
+            border-radius: 6px;
+            box-sizing: border-box;
+            font-family: monospace;
+            box-shadow: inset 0 1px 3px rgba(0,0,0,0.05);
+            transition: border-color 0.3s, box-shadow 0.3s;
+        }
+        textarea:focus, input[type="text"]:focus, input[type="number"]:focus {
+            border-color: #4a8df5;
+            box-shadow: inset 0 1px 3px rgba(0,0,0,0.05), 0 0 0 3px rgba(74,141,245,0.15);
+            outline: none;
+        }
+        textarea {
+            min-height: 200px;
+            font-size: 0.9em;
+        }
+        .button-group {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        .button-group button {
+            flex: 1;
+            padding: 12px 15px;
+            font-weight: 600;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            border: none;
+            color: white;
+        }
+        .primary-button {
+            background-color: #4a8df5;
+        }
+        .primary-button:hover {
+            background-color: #3a7de5;
+        }
+        .danger-button {
+            background-color: #e74c3c;
+        }
+        .danger-button:hover {
+            background-color: #d74133;
+        }
+        .success-button {
+            background-color: #2ecc71;
+        }
+        .success-button:hover {
+            background-color: #27ae60;
+        }
+        .options-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+            padding-top: 20px;
+            border-top: 1px solid #ecf0f1;
+        }
+        .options-grid div {
+            display: flex;
+            flex-direction: column;
+        }
+        .options-grid label {
+            margin-bottom: 5px;
+            font-size: 0.95em;
+        }
+        .checkbox-group label {
+            display: inline-block;
+            margin-right: 15px;
+            margin-bottom: 8px;
+            font-weight: normal;
+        }
+        .checkbox-group input[type="checkbox"] {
+            margin-right: 5px;
+            transform: scale(1.15);
+        }
+        #generate-button {
+            display: block;
+            width: 100%;
+            padding: 14px 20px;
+            background-color: #4a8df5;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 1.1em;
+            font-weight: 600;
+            transition: background-color 0.3s ease;
+            box-shadow: 0 2px 6px rgba(74,141,245,0.3);
+        }
+        #generate-button:hover {
+            background-color: #3a7de5;
+            box-shadow: 0 4px 8px rgba(74,141,245,0.4);
+        }
+        #generate-button:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+            box-shadow: none;
+        }
+        #output {
+            margin-top: 25px;
+            padding-top: 20px;
+            border-top: 1px solid #ecf0f1;
+        }
+        #status {
+            margin-top: 15px;
+            font-weight: bold;
+            padding: 12px;
+            border-radius: 6px;
+            text-align: center;
+        }
+        .status-success {
+            background-color: #e8f5e9;
+            color: #2e7d32;
+        }
+        .status-error {
+            background-color: #ffebee;
+            color: #c62828;
+        }
+        .status-info {
+            background-color: #e8f4fd;
+            color: #0277bd;
+        }
+        #pdf-link {
+            font-weight: bold;
+            word-break: break-all;
+            display: block;
+            text-align: center;
+            margin-top: 15px;
+            padding: 12px;
+            background-color: #4a8df5;
+            color: white;
+            border-radius: 6px;
+            text-decoration: none;
+            box-shadow: 0 2px 6px rgba(74,141,245,0.3);
+            transition: all 0.2s ease;
+        }
+        #pdf-link:hover {
+            background-color: #3a7de5;
+            box-shadow: 0 4px 8px rgba(74,141,245,0.4);
+        }
+        #latex-output {
+            background-color: #f8f9fa;
+            font-size: 0.85em;
+            max-height: 200px;
+            overflow: auto;
+            border: 1px solid #dde2e8;
+            border-radius: 6px;
+            padding: 10px;
+        }
+        .loader {
+            border: 4px solid rgba(74,141,245,0.3);
+            border-top: 4px solid #4a8df5;
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            animation: spin 1s linear infinite;
+            display: inline-block;
+            margin-left: 10px;
+            vertical-align: middle;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h1>PGN Parser & LaTeX PDF Link Generator</h1>
+        <p>Paste raw PGN text below. The parser will attempt to read headers, moves, comments <code>{}</code>, and variations <code>()</code>. Multiple games separated by blank lines are supported.</p>
+
+        <label for="pgn-input">Raw PGN Text:</label>
+        <div style="display: flex; margin-bottom: 15px;">
+            <textarea id="pgn-input" style="margin-bottom: 0;" placeholder="Paste your PGN text here or use the 'Add Sample Puzzles' button below"></textarea>
+        </div>
+        <div class="button-group">
+            <button id="sample-puzzles-button" class="primary-button">Add Sample Puzzles</button>
+            <button id="clear-button" class="danger-button">Clear</button>
+        </div>
+
+        <h2>Options</h2>
+        <div class="options-grid">
+            <div>
+                <label for="left-header">Left Header:</label>
+                <input type="text" id="left-header" value="Chess Diagrams">
+            </div>
+            <div>
+                <label for="right-header">Right Header:</label>
+                <input type="text" id="right-header" value="Page \thepage">
+            </div>
+             <div>
+                <label for="left-footer">Left Footer:</label>
+                <input type="text" id="left-footer" value="Generated Online">
+            </div>
+            <div>
+                <label for="enum-pages">Start Page Numbering From:</label>
+                <input type="number" id="enum-pages" value="1" min="1">
+            </div>
+             <div>
+                <label for="enum-diagrams">Start Diagram Numbering From:</label>
+                <input type="number" id="enum-diagrams" value="1" min="1">
+            </div>
+             <div class="checkbox-group" style="grid-column: 1 / -1;">
+                 <label>
+                    <input type="checkbox" id="include-solution-space" checked> Include Space for Solution Below Diagram
+                </label>
+                <label>
+                    <input type="checkbox" id="include-game-info" checked> Include Game Info Above Diagram
+                </label>
+                 <label>
+                    <input type="checkbox" id="include-solution-pages"> Include Solution Pages at End
+                </label>
+            </div>
+        </div>
+
+
+        <button id="generate-button">Parse PGN & Generate PDF Link</button>
+
+        <div id="output" style="display: none;">
+            <h2>Output</h2>
+            <div id="status"></div>
+            <a id="pdf-link" href="#" target="_blank" rel="noopener noreferrer" style="display: none;"></a>
+            <div>
+                <label for="latex-output">Generated LaTeX Code:</label>
+                <textarea id="latex-output" readonly></textarea>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Make sure DOM is fully loaded before executing code
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('DOM fully loaded, initializing app...');
+            
+            // --- Configuration ---
+            const hardcodedBaseUrl = window.location.origin || 'https://example.com';
+
+            // --- DOM Elements ---
+            const pgnInput = document.getElementById('pgn-input');
+            const generateButton = document.getElementById('generate-button');
+            const outputDiv = document.getElementById('output');
+            const statusDiv = document.getElementById('status');
+            const pdfLink = document.getElementById('pdf-link');
+            const latexOutput = document.getElementById('latex-output');
+            const leftHeaderInput = document.getElementById('left-header');
+            const rightHeaderInput = document.getElementById('right-header');
+            const leftFooterInput = document.getElementById('left-footer');
+            const enumPagesInput = document.getElementById('enum-pages');
+            const enumDiagramsInput = document.getElementById('enum-diagrams');
+            const includeSolutionSpaceCheckbox = document.getElementById('include-solution-space');
+            const includeGameInfoCheckbox = document.getElementById('include-game-info');
+            const includeSolutionPagesCheckbox = document.getElementById('include-solution-pages');
+            
+            console.log('DOM elements initialized:', 
+                Boolean(pgnInput), 
+                Boolean(document.getElementById('sample-puzzles-button')),
+                Boolean(document.getElementById('clear-button'))
+            );
+
+            // --- PGN Parser ---
+            function parsePgn(pgnString) {
+                const games = [];
+                const potentialGameStrings = pgnString.trim().split(/(\n\s*){2,}/);
+                let currentGameObject = null;
+
+                potentialGameStrings.forEach(block => {
+                    block = block.trim();
+                    if (!block) return;
+
+                    if (block.startsWith('[')) {
+                        if (currentGameObject) games.push(currentGameObject);
+                        currentGameObject = { headers: [], moves: [], result: null };
+                        parseHeaders(block, currentGameObject.headers);
+                    } else if (currentGameObject) {
+                        currentGameObject.movetext = (currentGameObject.movetext || '') + ' ' + block;
+                    }
+                });
+                if (currentGameObject) games.push(currentGameObject);
+
+                games.forEach(game => {
+                    if (game.movetext) {
+                        parseMovetext(game.movetext, game.moves, game);
+                        delete game.movetext;
+                    }
+                    if (!game.result) {
+                        const resultHeader = game.headers.find(h => h.name === 'Result');
+                        if (resultHeader) game.result = resultHeader.value;
+                    }
+                });
+                return games.filter(g => g.headers.length > 0 || g.moves.length > 0);
+            }
+
+            function parseHeaders(headerBlock, headersArray) {
+                const headerRegex = /^\s*\[\s*(\w+)\s*"([^"]*)"\s*\]\s*$/;
+                headerBlock.split('\n').forEach(line => {
+                    const match = line.match(headerRegex);
+                    if (match) headersArray.push({ name: match[1], value: match[2] });
+                });
+            }
+
+            function parseMovetext(movetext, movesArray, game) {
+                let cleanedMovetext = movetext.replace(/\n/g, ' ').replace(/\s+/g, ' ').trim();
+                const sanRegexPart = '(?:[NBKRQ]?[a-h]?[1-8]?x?[a-h][1-8](?:=[NBRQ])?|O-O(?:-O)?)[+#]?';
+                const revisedTokenRegex = new RegExp(
+                    '(\\d+\\.+)\\s*' +
+                    '|(\\{([^}]*?)\\})\\s*' +
+                    '|(\\()\\s*' +
+                    '|(\\))\\s*' +
+                    '|(\\*|1-0|0-1|1\\/2-1\\/2)\\s*' +
+                    '|(' + sanRegexPart + ')\\s*',
+                    'g'
+                );
+
+                let match;
+                let currentMoveNumber = null;
+                let currentTurnDot = '.';
+                let variationStack = [movesArray];
+                let lastMoveObject = null;
+
+                while ((match = revisedTokenRegex.exec(cleanedMovetext)) !== null) {
+                    const currentLevelMoves = variationStack[variationStack.length - 1];
+                    if (match[1]) { // Move Number
+                        currentMoveNumber = parseInt(match[1]);
+                        currentTurnDot = match[1].endsWith('...') ? '...' : '.';
+                    } else if (match[2]) { // Comment
+                        const commentText = match[3].trim();
+                        if (lastMoveObject) {
+                            if (!lastMoveObject.comments) lastMoveObject.comments = [];
+                            lastMoveObject.comments.push({ text: commentText });
+                        }
+                    } else if (match[4]) { // Variation Start
+                        if (!lastMoveObject) continue;
+                        if (!lastMoveObject.ravs) lastMoveObject.ravs = [];
+                        const newVariationMoves = [];
+                        lastMoveObject.ravs.push({ moves: newVariationMoves });
+                        variationStack.push(newVariationMoves);
+                        lastMoveObject = null;
+                    } else if (match[5]) { // Variation End
+                        if (variationStack.length > 1) {
+                            variationStack.pop();
+                            const parentLevelMoves = variationStack[variationStack.length - 1];
+                            lastMoveObject = parentLevelMoves.length > 0 ? parentLevelMoves[parentLevelMoves.length - 1] : null;
+                        }
+                    } else if (match[6]) { // Result
+                        if (variationStack.length === 1) game.result = match[6];
+                        break;
+                    } else if (match[7]) { // SAN Move
+                        const moveObj = { move: match[7] };
+                        if (currentMoveNumber !== null && (lastMoveObject === null || currentTurnDot === '.')) {
+                            moveObj.move_number = currentMoveNumber;
+                        }
+                        currentLevelMoves.push(moveObj);
+                        lastMoveObject = moveObj;
+                        currentTurnDot = '...';
+                    }
+                }
+            }
+
+            // --- LaTeX Generation ---
+            const STARTING_FEN = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
+
+            const getPgnHeader = (headers, name) => {
+                if (!Array.isArray(headers)) return null;
+                const header = headers.find(e => e && typeof e === 'object' && e.name === name);
+                const value = header?.value;
+                if (!value) return null;
+                if (name === "Date") {
+                    const parts = value.split('.').filter(e => !e.includes('?'));
+                    if (!parts || parts.length === 0) return null;
+                    return parts.join('.');
+                } else {
+                    if (name !== 'StartFlipped' && typeof value === 'string' && value.includes('?')) return null;
+                }
+                return value;
+            }
+
+            const prettyMoves = (moves, initTurn) => {
+                if (!Array.isArray(moves)) return '';
+                let turn = initTurn;
+                let out = '';
+                for (const moveData of moves) {
+                    if (!moveData || typeof moveData !== 'object' || !moveData.move) continue;
+                    const { move, move_number, comments, ravs } = moveData;
+                    if (move_number && turn) {
+                        out += String.raw`${move_number}.\,`;
+                    } else if (move_number && !turn) {
+                        out += String.raw`${move_number}...\,`;
+                    }
+                    const safeMove = String(move).replace(/#/g, String.raw`\#`);
+                    out += String.raw`\texttt{${safeMove}}`;
+                    if (Array.isArray(comments) && comments.length > 0) {
+                        const commentTexts = comments.map(c => (c && c.text) ? c.text : '').filter(Boolean);
+                        if (commentTexts.length > 0) {
+                            const safeComment = commentTexts.join('; ')
+                                .replace(/\\/g, '\\textbackslash{}')
+                                .replace(/\{/g, '\\{')
+                                .replace(/\}/g, '\\}')
+                                .replace(/_/g, '\\_')
+                                .replace(/\^/g, '\\^')
+                                .replace(/&/g, '\\&')
+                                .replace(/%/g, '\\%')
+                                .replace(/\$/g, '\\$')
+                                .replace(/#/g, '\\#')
+                                .replace(/~/g, '\\textasciitilde{}');
+                            out += String.raw` \{${safeComment}\}`;
+                        }
+                    }
+                    if (Array.isArray(ravs) && ravs.length > 0) {
+                        for (const rav of ravs) {
+                            if (rav && Array.isArray(rav.moves)) {
+                                out += ` (${prettyMoves(rav.moves, turn)})`;
+                            }
+                        }
+                    }
+                    out += ' ';
+                    turn = !turn;
+                }
+                return out.trim();
+            }
+
+            const pgnToLaTeX = (pgnData, options) => {
+                options = options || {};
+                const {
+                    leftHeader = '', rightHeader = '', leftFooter = '',
+                    includeSolutionSpace = true, includeGameInfo = true,
+                    includeSolutionPages = false,
+                    enumeratePagesFrom = 1,
+                    enumerateDiagramsFrom = 1,
+                } = options;
+
+                const baseUrl = hardcodedBaseUrl;
+
+                let gameInfoLatex = String.raw`\parbox[t]{0.9\linewidth}{\centering #4}`;
+                let solutionSpace = String.raw`\par(#1)\,{ }\dotfill{ }\,{ }\ifthenelse{\equal{#3}{w}}{$\square$}{$\blacksquare$}`;
+                let noSolutionSpace = String.raw`\par(#1)\hfill\ifthenelse{\equal{#3}{w}}{$\square$}{$\blacksquare$}`;
+                let showBoardWithPov = String.raw`\ifthenelse{\equal{#5}{white}}{\chessboard}{\rotatebox{180}{\chessboard}}`;
+
+                let out = String.raw`\documentclass[a4paper, oneside]{article}
+\usepackage{graphicx}
+\usepackage[a4paper, margin=1.5cm]{geometry}
+\usepackage{xskak}
+\usepackage{tabularx}
+\usepackage{fancyhdr}
+\usepackage{hyperref}
+\usepackage{amssymb}
+\usepackage{ifthen}
+\usepackage{textcomp}
+\usepackage{xparse}
+
+\pagestyle{fancy}
+\fancyhf{}
+\lhead{${leftHeader}}
+\rhead{${rightHeader}}
+\lfoot{${leftFooter}}
+\rfoot{created in \href{${baseUrl}}{${baseUrl}}}
+\cfoot{\thepage}
+\renewcommand{\headrulewidth}{0.4pt}
+\renewcommand{\footrulewidth}{0.4pt}
+
+\begin{document}
+\setlength{\tabcolsep}{10pt}
+\setlength{\parindent}{0pt}
+\setcounter{page}{${enumeratePagesFrom}}
+
+% Diagram command: #1=num, #2=FEN, #3=turn, #4=info, #5=pov
+\newcommand{\diagram}[5]{
+\begin{center}
+\setchessboard{fen=#2}
+${includeGameInfo ? gameInfoLatex : ''}
+\vspace{2mm}
+\centerline{${showBoardWithPov}}
+\vspace{1mm}
+${includeSolutionSpace ? solutionSpace : noSolutionSpace}
+\end{center}
+}
+
+% Solution command: #1=num, #2=moves text
+\newcommand{\solution}[2]{
+\vspace{2mm}
+\noindent\hangindent=1.5em\hangafter=1
+(#1) {\mainline{#2}}
+\par\vspace{1mm}
+}
+
+\begin{center}`;
+
+                const perPage = 6;
+                const n = Array.isArray(pgnData) ? pgnData.length : 0;
+                let diagramCounter = 0;
+
+                for (let i = 0; i < n; ++i) {
+                    const game = pgnData[i];
+                    if (!game || typeof game !== 'object' || !game.headers) continue;
+
+                    const { headers, moves, result } = game;
+
+                    const fen = getPgnHeader(headers, "FEN") || STARTING_FEN;
+                    const white = getPgnHeader(headers, "White") || 'N.N.';
+                    const black = getPgnHeader(headers, "Black") || 'N.N.';
+                    const event = getPgnHeader(headers, "Event");
+                    const date = getPgnHeader(headers, "Date");
+                    const rawPov = getPgnHeader(headers, "StartFlipped");
+                    const pov = (rawPov === "1" || String(rawPov).toLowerCase() === "black") ? "black" : "white";
+
+                    const escapeLatex = (str) => str ? String(str).replace(/\\/g, '\\textbackslash{}').replace(/\{/g, '\\{').replace(/\}/g, '\\}').replace(/_/g, '\\_').replace(/\^/g, '\\^').replace(/&/g, '\\&').replace(/%/g, '\\%').replace(/\$/g, '\\$').replace(/#/g, '\\#').replace(/~/g, '\\textasciitilde{}') : '';
+
+                    let eventInfo = [escapeLatex(event), escapeLatex(date)].filter(e => !!e).join(', ');
+                    let info = String.raw`\textit{Position ${i + enumerateDiagramsFrom}}`;
+                    const safeWhite = escapeLatex(white);
+                    const safeBlack = escapeLatex(black);
+                    const atLeastOnePlayerKnown = white !== 'N.N.' || black !== 'N.N.';
+
+                    if (atLeastOnePlayerKnown) {
+                        info = String.raw`\textbf{${safeWhite} -- ${safeBlack}}`;
+                        if (eventInfo) info += String.raw`, \textit{${eventInfo}}`;
+                    } else if (eventInfo) {
+                        info = String.raw`\textit{${eventInfo}}`;
+                    }
+
+                    if (diagramCounter % perPage === 0) {
+                        if (diagramCounter > 0) out += String.raw`\end{tabularx}\pagebreak `;
+                        out += String.raw`\begin{tabularx}{\textwidth}{@{} X X @{}}`;
+                    }
+
+                    const turn = fen.split(' ')[1]?.toLowerCase() || 'w';
+
+                    out += String.raw`\diagram{${i + enumerateDiagramsFrom}}{${fen}}{${turn}}{${info}}{${pov}}`;
+
+                    if (diagramCounter % 2 === 0) {
+                        out += String.raw` & `;
+                    } else {
+                        out += String.raw` \\ \noalign{\vspace{5mm}}`;
+                    }
+
+                    diagramCounter++;
+
+                    if (i === n - 1) {
+                        if (diagramCounter % 2 !== 0) out += String.raw` & `;
+                        out += String.raw`\end{tabularx}`;
+                    }
+                }
+                if (diagramCounter > 0 && diagramCounter % perPage === 0 && diagramCounter < n) {
+                    out += String.raw`\end{tabularx}`;
+                } else if (n === 0) {
+                    out += String.raw`\textit{No PGN data found or parsed.}`;
+                }
+
+                out += String.raw`\end{center}`;
+
+                if (includeSolutionPages) {
+                    let anySolution = false;
+                    let solutionText = '';
+                    for (let i = 0; i < n; ++i) {
+                        const game = pgnData[i];
+                        if (!game || typeof game !== 'object' || !Array.isArray(game.moves) || game.moves.length === 0) continue;
+
+                        const { headers, moves, result } = game;
+                        const fen = getPgnHeader(headers, "FEN") || STARTING_FEN;
+                        const turn = fen.split(' ')[1]?.toLowerCase() || 'w';
+
+                        if (!anySolution) {
+                            solutionText += String.raw`\newpage \section*{Solutions}` + "\n";
+                            anySolution = true;
+                        }
+
+                        const formattedMoves = prettyMoves(moves, turn === 'w');
+                        const finalResult = game.result && game.result !== '*' ? ` ${game.result}` : '';
+
+                        if (formattedMoves || finalResult) {
+                            solutionText += String.raw`\solution{${i + enumerateDiagramsFrom}}{${formattedMoves}${finalResult}}` + "\n";
+                        }
+                    }
+                    if (anySolution) {
+                        out += "\n" + solutionText;
+                    }
+                }
+
+                out += String.raw`\end{document}`;
+                return out;
+            }
+
+            const generatePdfUrl = (latex) => {
+                if (!latex) return '';
+                const encodedLatex = encodeURIComponent(latex);
+                return `https://texlive2020.latexonline.cc/compile?text=${encodedLatex}`;
+            }
+
+            // --- Event Listeners ---
+            // Add sample puzzles button functionality
+            const samplePuzzlesButton = document.getElementById('sample-puzzles-button');
+            console.log('Sample button element:', samplePuzzlesButton);
+            
+            if (samplePuzzlesButton) {
+                samplePuzzlesButton.addEventListener('click', function() {
+                    console.log('Sample puzzles button clicked');
+                    pgnInput.value = `[Event "World Championship"]
+[Date "2016.11.30"]
+[Round "13.4"]
+[FEN "2R5/4bppk/1p1p4/5R1P/4PQ2/5P2/r4q1P/7K w - - 5 50"]
+[White "Magnus Carlsen"]
+[Black "Sergey Karjakin"]
+[Result "1-0"]
+
+1. Qh6+ {Black resigned here} Kxh6 {Black must take} (1... gxh6 2. Rxf7#) 2. Rh8# 1-0
+
+[Event "New Delhi"]
+[White "B Adhiban"]
+[Black "Upadhyaya Anwesh"]
+[Date "2005"]
+[FEN "r4rk1/3n1p2/1q4pp/1p3N1P/1P1QP3/p4R2/P5P1/5RK1 w - - 1 0"]
+
+1. Ne7+ Kh7 2. Rxf7+ *
+
+[Event "Mate in 2"]
+[Site "?"]
+[White "?"]
+[Black "?"]
+[Result "1-0"]
+[FEN "8/1R5p/5Rqk/4B1pP/p5P1/5p2/5P1K/8 w - - 0 1"]
+
+1. Re6 a3 2. Bg7# 1-0
+
+[Event "Mate in 2"]
+[FEN "5rk1/p1p1r1p1/bp2p1Qp/8/3PBq2/2N5/P7/K2n3R b - - 0 1"]
+
+1... Qc1+ 2. Bb1 (2. Nb1 Qb2#) Qb2# 0-1`;
+                    console.log('Text set to textarea, length:', pgnInput.value.length);
+                    alert('Sample puzzles loaded!');
+                });
+            } else {
+                console.error('Sample puzzles button not found!');
+            }
+
+            // Add clear button functionality 
+            const clearButton = document.getElementById('clear-button');
+            if (clearButton) {
+                clearButton.addEventListener('click', function() {
+                    console.log('Clear button clicked');
+                    pgnInput.value = '';
+                    alert('Textarea cleared!');
+                });
+            }
+
+            // --- Generate Button Listener ---
+            generateButton.addEventListener('click', function() {
+                const pgnString = pgnInput.value.trim();
+                outputDiv.style.display = 'none';
+                pdfLink.style.display = 'none';
+                statusDiv.textContent = 'Starting...';
+                statusDiv.className = 'status status-info';
+                latexOutput.value = '';
+                generateButton.disabled = true;
+                statusDiv.innerHTML = 'Parsing PGN... <span class="loader"></span>';
+
+                if (!pgnString) {
+                    statusDiv.textContent = 'Error: PGN Input is empty.';
+                    statusDiv.className = 'status status-error';
+                    outputDiv.style.display = 'block';
+                    generateButton.disabled = false;
+                    return;
+                }
+
+                setTimeout(() => {
+                    let pgnData;
+                    try {
+                        pgnData = parsePgn(pgnString);
+                        if (!pgnData || pgnData.length === 0) {
+                            throw new Error("Could not parse any valid games from the input PGN.");
+                        }
+                        statusDiv.innerHTML = `Parsed ${pgnData.length} game(s). Generating LaTeX... <span class="loader"></span>`;
+                    } catch (error) {
+                        console.error("PGN Parsing Error:", error);
+                        statusDiv.textContent = `Error Parsing PGN: ${error.message}`;
+                        statusDiv.className = 'status status-error';
+                        outputDiv.style.display = 'block';
+                        generateButton.disabled = false;
+                        return;
+                    }
+
+                    const options = {
+                        leftHeader: leftHeaderInput.value,
+                        rightHeader: rightHeaderInput.value,
+                        leftFooter: leftFooterInput.value,
+                        includeSolutionSpace: includeSolutionSpaceCheckbox.checked,
+                        includeGameInfo: includeGameInfoCheckbox.checked,
+                        includeSolutionPages: includeSolutionPagesCheckbox.checked,
+                        enumeratePagesFrom: parseInt(enumPagesInput.value, 10) || 1,
+                        enumerateDiagramsFrom: parseInt(enumDiagramsInput.value, 10) || 1,
+                    };
+
+                    setTimeout(() => {
+                        try {
+                            const latexCode = pgnToLaTeX(pgnData, options);
+                            latexOutput.value = latexCode;
+                            statusDiv.innerHTML = 'Generating PDF Link... <span class="loader"></span>';
+                            const url = generatePdfUrl(latexCode);
+
+                            if (url) {
+                                pdfLink.href = url;
+                                pdfLink.textContent = 'Click here to open/download PDF';
+                                pdfLink.style.display = 'block';
+                                statusDiv.textContent = 'PDF Link Ready!';
+                                statusDiv.className = 'status status-success';
+                                
+                                // Automatically open the PDF link in a new tab
+                                window.open(url, '_blank');
+                            } else {
+                                throw new Error("Failed to generate PDF URL (empty LaTeX?).");
+                            }
+                        } catch (error) {
+                            console.error("LaTeX/URL Generation Error:", error);
+                            statusDiv.textContent = `Error during PDF Generation: ${error.message}`;
+                            statusDiv.className = 'status status-error';
+                            pdfLink.style.display = 'none';
+                        } finally {
+                            outputDiv.style.display = 'block';
+                            generateButton.disabled = false;
+                        }
+                    }, 50);
+                }, 50);
+            });
+        });
+    </script>
+
+</body>
+</html>

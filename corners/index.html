@@ -1,0 +1,1823 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Кути</title>
+    <style>
+        :root {
+            --board-color: #8B4513; /* классический деревянный цвет доски */
+            --light-cell: #F5DEB3; /* пшеничный цвет для светлых клеток */
+            --dark-cell: #8B4513; /* коричневый для темных клеток */
+            --player-color: #000000; /* черные шашки */
+            --ai-color: #FF0000; /* красные шашки */
+            --selected-color: #ffd700;
+            --possible-move: rgba(255, 255, 255, 0.4);
+            --possible-jump: rgba(255, 215, 0, 0.5);
+            --bg-color: #1E1E1E; /* темный фон (ночной режим) */
+            --text-color: #F0F0F0; /* светлый текст для темного фона */
+            --card-bg: #2D2D2D; /* темный фон для карточек */
+            --button-bg: #8B4513; /* цвет кнопок как доска */
+            --button-hover: #A0522D; /* цвет кнопок при наведении */
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Arial', sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            background-color: var(--bg-color);
+            padding: 20px;
+            color: var(--text-color);
+            touch-action: manipulation;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        h1 {
+            margin-bottom: 20px;
+            color: var(--text-color);
+            text-align: center;
+        }
+
+        .board-container {
+            position: relative;
+            width: 100%;
+            max-width: 500px;
+            margin-bottom: 20px;
+        }
+
+        .board {
+            display: grid;
+            grid-template-columns: repeat(8, 1fr);
+            grid-template-rows: repeat(8, 1fr);
+            gap: 2px;
+            aspect-ratio: 1;
+            padding: 8px;
+            background-color: var(--board-color);
+            border-radius: 8px;
+            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.3);
+        }
+
+        .cell {
+            aspect-ratio: 1;
+            border-radius: 4px;
+            position: relative;
+            cursor: pointer;
+            transition: background-color 0.2s;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        .light {
+            background-color: var(--light-cell);
+        }
+
+        .dark {
+            background-color: var(--dark-cell);
+        }
+
+        .piece {
+            position: absolute;
+            width: 80%;
+            height: 80%;
+            border-radius: 50%;
+            top: 10%;
+            left: 10%;
+            transition: transform 0.3s ease;
+        }
+
+        .player-piece {
+            background-color: var(--player-color);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+        }
+
+        .ai-piece {
+            background-color: var(--ai-color);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+        }
+
+        .selected {
+            box-shadow: 0 0 0 3px var(--selected-color), 0 2px 4px rgba(0, 0, 0, 0.3);
+            transform: scale(1.1);
+        }
+
+        .possible-move {
+            background-color: var(--possible-move);
+        }
+
+        .possible-jump {
+            background-color: var(--possible-jump);
+        }
+
+        .difficulty-indicator {
+            position: absolute;
+            top: 50px;
+            right: 10px;
+            background-color: var(--card-bg);
+            border-radius: 5px;
+            padding: 5px 10px;
+            font-size: 14px;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+            z-index: 10;
+        }
+
+        .difficulty-indicator.show {
+            opacity: 1;
+        }
+
+        .game-controls {
+            width: 100%;
+            max-width: 500px;
+            display: flex;
+            justify-content: flex-start;
+            align-items: center;
+            gap: 15px;
+            margin-bottom: 20px;
+            position: relative;
+        }
+
+        .config-button {
+            width: 36px;
+            height: 36px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0;
+        }
+
+        .square-icon, .triangle-icon {
+            width: 20px;
+            height: 20px;
+            position: relative;
+        }
+
+        .square-icon {
+            border: 2px solid var(--text-color);
+        }
+
+        .triangle-icon {
+            display: none;
+            width: 0;
+            height: 0;
+            border-left: 10px solid transparent;
+            border-right: 10px solid transparent;
+            border-bottom: 18px solid var(--text-color);
+        }
+
+        .undo-button {
+            width: 36px;
+            height: 36px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0;
+        }
+
+        .undo-icon {
+            width: 14px;
+            height: 14px;
+            border: 2px solid var(--text-color);
+            border-top: none;
+            border-right: none;
+            transform: rotate(45deg);
+            margin-top: -2px;
+            margin-left: 2px;
+        }
+
+        .menu-button {
+            width: 36px;
+            height: 36px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            padding: 0;
+            background-color: #444;
+        }
+
+        .menu-dots {
+            display: flex;
+            gap: 4px;
+        }
+
+        .menu-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background-color: var(--text-color);
+        }
+
+        .menu-dot.active {
+            background-color: #4ecca3;
+        }
+
+        .menu-dot.hidden {
+            display: none;
+        }
+
+        button {
+            padding: 8px 12px;
+            border: none;
+            background-color: var(--button-bg);
+            color: var(--text-color);
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.2s ease;
+            user-select: none;
+            -webkit-user-select: none;
+            min-height: 36px;
+            min-width: 36px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+        }
+
+        button:hover, button:focus {
+            background-color: var(--button-hover);
+            transform: translateY(-2px);
+        }
+
+        button:active {
+            transform: translateY(0px);
+        }
+
+        .game-over {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.8);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 100;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s ease;
+        }
+
+        .game-over.active {
+            opacity: 1;
+            pointer-events: all;
+        }
+
+        .game-over-content {
+            background-color: var(--card-bg);
+            padding: 30px;
+            border-radius: 10px;
+            text-align: center;
+            max-width: 90%;
+        }
+
+        .game-over h2 {
+            margin-bottom: 20px;
+            color: var(--text-color);
+        }
+
+        .move-counter {
+            position: absolute;
+            right: 0;
+            background-color: var(--card-bg);
+            border-radius: 5px;
+            padding: 8px 15px;
+            font-size: 16px;
+            font-weight: bold;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+            color: var(--text-color);
+            margin: 0;
+        }
+
+        /* Mobile optimizations */
+        @media (max-width: 600px) {
+            .board {
+                gap: 1px;
+                padding: 4px;
+            }
+            
+            .cell {
+                border-radius: 2px;
+                min-width: 40px;
+                min-height: 40px;
+            }
+            
+            .piece {
+                width: 90%;
+                height: 90%;
+                top: 5%;
+                left: 5%;
+            }
+            
+            .game-controls {
+                flex-wrap: wrap;
+                gap: 10px;
+            }
+            
+            button {
+                flex-grow: 0;
+                min-height: 36px;
+                padding: 8px 10px;
+            }
+        }
+
+        @media (max-width: 350px) {
+            h1 {
+                font-size: 1.5rem;
+                margin-bottom: 10px;
+            }
+            
+            button {
+                padding: 6px 10px;
+                font-size: 13px;
+                min-height: 32px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <h1>Уголки</h1>
+    
+    <div class="game-controls">
+        <button class="config-button" id="config-button">
+            <div class="square-icon" style="display: none;"></div>
+            <div class="triangle-icon" style="display: block;"></div>
+        </button>
+        <button class="undo-button" id="undo-button">
+            <span class="undo-icon"></span>
+        </button>
+        <button id="new-game">Нова гра</button>
+        <button class="menu-button" id="difficulty-button">
+            <div class="menu-dots">
+                <span class="menu-dot active"></span>
+                <span class="menu-dot hidden"></span>
+                <span class="menu-dot hidden"></span>
+            </div>
+        </button>
+        <div class="difficulty-indicator" id="difficulty-indicator">
+            Легкий рівень
+        </div>
+        <div class="move-counter" id="move-counter">Хід: 1</div>
+    </div>
+    
+    <div class="board-container">
+        <div class="board" id="board">
+            <!-- The game board will be created by JavaScript -->
+        </div>
+    </div>
+    
+    <div class="game-over" id="game-over">
+        <div class="game-over-content">
+            <h2 id="winner-message">Ви перемогли!</h2>
+            <button id="play-again">Грати знову</button>
+        </div>
+    </div>
+
+    <script>
+        // Game constants
+        const BOARD_SIZE = 8;
+        const EMPTY = 0;
+        const PLAYER = 1;
+        const AI = 2;
+        const MUST_MOVE_FROM_BASE_AFTER_TURN = 30;
+        
+        // Initial piece positions - SWAPPED!
+        const AI_INITIAL_POSITIONS_SQUARE = [
+            {row: 0, col: 0}, {row: 0, col: 1}, {row: 0, col: 2},
+            {row: 1, col: 0}, {row: 1, col: 1}, {row: 1, col: 2},
+            {row: 2, col: 0}, {row: 2, col: 1}, {row: 2, col: 2}
+        ];
+        
+        const PLAYER_INITIAL_POSITIONS_SQUARE = [
+            {row: BOARD_SIZE-1, col: BOARD_SIZE-1}, {row: BOARD_SIZE-1, col: BOARD_SIZE-2}, {row: BOARD_SIZE-1, col: BOARD_SIZE-3},
+            {row: BOARD_SIZE-2, col: BOARD_SIZE-1}, {row: BOARD_SIZE-2, col: BOARD_SIZE-2}, {row: BOARD_SIZE-2, col: BOARD_SIZE-3},
+            {row: BOARD_SIZE-3, col: BOARD_SIZE-1}, {row: BOARD_SIZE-3, col: BOARD_SIZE-2}, {row: BOARD_SIZE-3, col: BOARD_SIZE-3}
+        ];
+        
+        // Треугольная конфигурация (8 шашек вместо 9)
+        const AI_INITIAL_POSITIONS_TRIANGLE = [
+            {row: 0, col: 0}, {row: 0, col: 1}, {row: 0, col: 2}, {row: 0, col: 3},
+            {row: 1, col: 0}, {row: 2, col: 0}, {row: 3, col: 0},
+            {row: 1, col: 1},  // Шашка по диагонали
+            // Добавленные шашки на черных полях
+            {row: 1, col: 2}, {row: 2, col: 1}
+        ];
+        
+        const PLAYER_INITIAL_POSITIONS_TRIANGLE = [
+            {row: BOARD_SIZE-1, col: BOARD_SIZE-1}, {row: BOARD_SIZE-1, col: BOARD_SIZE-2}, {row: BOARD_SIZE-1, col: BOARD_SIZE-3}, {row: BOARD_SIZE-1, col: BOARD_SIZE-4},
+            {row: BOARD_SIZE-2, col: BOARD_SIZE-1}, {row: BOARD_SIZE-3, col: BOARD_SIZE-1}, {row: BOARD_SIZE-4, col: BOARD_SIZE-1},
+            {row: BOARD_SIZE-2, col: BOARD_SIZE-2},  // Шашка по диагонали
+            // Добавленные шашки на черных полях
+            {row: BOARD_SIZE-2, col: BOARD_SIZE-3}, {row: BOARD_SIZE-3, col: BOARD_SIZE-2}
+        ];
+        
+        // Текущая конфигурация
+        let isTriangleConfig = true; // Треугольная конфигурация по умолчанию
+        let AI_INITIAL_POSITIONS = AI_INITIAL_POSITIONS_TRIANGLE;
+        let PLAYER_INITIAL_POSITIONS = PLAYER_INITIAL_POSITIONS_TRIANGLE;
+        
+        // Player's target area (AI's starting position)
+        let PLAYER_TARGET_AREA = AI_INITIAL_POSITIONS.map(pos => `${pos.row},${pos.col}`);
+        
+        // AI's target area (Player's starting position)
+        let AI_TARGET_AREA = PLAYER_INITIAL_POSITIONS.map(pos => `${pos.row},${pos.col}`);
+        
+        // Game state
+        let board = [];
+        let selectedPiece = null;
+        let possibleMoves = [];
+        let possibleJumps = [];
+        let currentPlayer = PLAYER;
+        let gameOver = false;
+        let difficulty = 'easy';
+        let moveHistory = [];
+        let hasMoved = false;
+        let initialPosition = null;
+        let moveCount = 0; // Начинаем с нуля
+        let hasMadeJump = false; // Флаг для отслеживания совершенного прыжка
+        let lastMovedPieceByAI = null; // Для отслеживания последней шашки, которой ходил AI
+        
+        // DOM elements
+        const boardElement = document.getElementById('board');
+        const statusElement = document.getElementById('winner-message');
+        const newGameButton = document.getElementById('new-game');
+        const gameOverElement = document.getElementById('game-over');
+        const winnerMessage = document.getElementById('winner-message');
+        const playAgainButton = document.getElementById('play-again');
+        const difficultyButton = document.getElementById('difficulty-button');
+        const difficultyIndicator = document.getElementById('difficulty-indicator');
+        const undoButton = document.getElementById('undo-button');
+        const menuDots = document.querySelectorAll('.menu-dot');
+        const moveCounterElement = document.getElementById('move-counter');
+        const configButton = document.getElementById('config-button');
+        const squareIcon = document.querySelector('.square-icon');
+        const triangleIcon = document.querySelector('.triangle-icon');
+
+        // Difficulty levels and their names in Ukrainian
+        const difficultyLevels = ['easy', 'medium', 'hard'];
+        const difficultyNames = {
+            'easy': 'Легкий рівень',
+            'medium': 'Середній рівень',
+            'hard': 'Складний рівень'
+        };
+        
+        // Animation delay between moves (in milliseconds)
+        const AI_MOVE_ANIMATION_DELAY = 400;
+
+        // Initialize the game
+        function initGame() {
+            // Create empty board
+            board = Array(BOARD_SIZE).fill().map(() => Array(BOARD_SIZE).fill(EMPTY));
+            moveHistory = [];
+            
+            // Place player pieces
+            PLAYER_INITIAL_POSITIONS.forEach(pos => {
+                board[pos.row][pos.col] = PLAYER;
+            });
+            
+            // Place AI pieces
+            AI_INITIAL_POSITIONS.forEach(pos => {
+                board[pos.row][pos.col] = AI;
+            });
+            
+            // Reset game state
+            selectedPiece = null;
+            possibleMoves = [];
+            possibleJumps = [];
+            currentPlayer = PLAYER;
+            gameOver = false;
+            hasMoved = false;
+            initialPosition = null;
+            moveCount = 0; // Начинаем с нуля
+            lastMovedPieceByAI = null; // Сбрасываем последнюю перемещенную шашку
+            
+            // Create board UI
+            createBoardUI();
+            
+            // Hide game over screen
+            gameOverElement.classList.remove('active');
+            
+            // Update status display
+            updateStatus();
+            
+            // Update the undo button
+            updateUndoButton();
+            
+            // Update difficulty dots
+            updateDifficultyDots();
+            
+            // Update move counter
+            updateMoveCounter();
+        }
+        
+        // Create the board UI with enhanced touch support
+        function createBoardUI() {
+            boardElement.innerHTML = '';
+            
+            for (let row = 0; row < BOARD_SIZE; row++) {
+                for (let col = 0; col < BOARD_SIZE; col++) {
+                    const cell = document.createElement('div');
+                    cell.className = `cell ${(row + col) % 2 === 0 ? 'light' : 'dark'}`;
+                    cell.dataset.row = row;
+                    cell.dataset.col = col;
+                    
+                    if (board[row][col] !== EMPTY) {
+                        const piece = document.createElement('div');
+                        piece.className = `piece ${board[row][col] === PLAYER ? 'player-piece' : 'ai-piece'}`;
+                        cell.appendChild(piece);
+                    }
+                    
+                    // Universal click handling for both mouse and touch
+                    function handleClick(event) {
+                        event.preventDefault();
+                        const clickedCell = event.currentTarget;
+                        const clickedRow = parseInt(clickedCell.dataset.row, 10);
+                        const clickedCol = parseInt(clickedCell.dataset.col, 10);
+                        handleCellClick(clickedRow, clickedCol);
+                    }
+                    
+                    // Add click events
+                    cell.addEventListener('click', handleClick);
+                    cell.addEventListener('touchend', handleClick, { passive: false });
+                    
+                    boardElement.appendChild(cell);
+                }
+            }
+        }
+        
+        // Update board UI based on current game state
+        function updateBoardUI() {
+            // Clear previous selections and possible moves
+            document.querySelectorAll('.selected, .possible-move, .possible-jump').forEach(element => {
+                element.classList.remove('selected', 'possible-move', 'possible-jump');
+            });
+            
+            // Update pieces - don't replace cells to keep event listeners
+            for (let row = 0; row < BOARD_SIZE; row++) {
+                for (let col = 0; col < BOARD_SIZE; col++) {
+                    const cell = boardElement.querySelector(`.cell[data-row="${row}"][data-col="${col}"]`);
+                    
+                    // Clear existing pieces
+                    while (cell.firstChild) {
+                        cell.removeChild(cell.firstChild);
+                    }
+                    
+                    // Add piece if present
+                    if (board[row][col] !== EMPTY) {
+                        const piece = document.createElement('div');
+                        piece.className = `piece ${board[row][col] === PLAYER ? 'player-piece' : 'ai-piece'}`;
+                        cell.appendChild(piece);
+                    }
+                }
+            }
+            
+            // Highlight selected piece if any
+            if (selectedPiece) {
+                const selectedCell = boardElement.querySelector(`.cell[data-row="${selectedPiece.row}"][data-col="${selectedPiece.col}"]`);
+                if (selectedCell && selectedCell.firstChild) {
+                    selectedCell.firstChild.classList.add('selected');
+                }
+                
+                // Highlight possible moves
+                possibleMoves.forEach(move => {
+                    boardElement.querySelector(`.cell[data-row="${move.row}"][data-col="${move.col}"]`).classList.add('possible-move');
+                });
+                
+                // Highlight possible jumps
+                possibleJumps.forEach(jump => {
+                    boardElement.querySelector(`.cell[data-row="${jump.row}"][data-col="${jump.col}"]`).classList.add('possible-jump');
+                });
+            }
+            
+            // Update the undo button
+            updateUndoButton();
+        }
+        
+        // Handle cell click
+        function handleCellClick(row, col) {
+            if (gameOver) {
+                return;
+            }
+            if (currentPlayer !== PLAYER) {
+                return; // Not player's turn or game is over
+            }
+            
+            const clickedPieceType = board[row][col];
+            
+            // If no piece is selected and player clicks their piece, select it
+            if (!selectedPiece && clickedPieceType === PLAYER) {
+                // После 30 хода: если у игрока есть шашки на своей базе, он должен двигать их
+                if (moveCount >= MUST_MOVE_FROM_BASE_AFTER_TURN && hasPiecesInOwnBase(PLAYER)) {
+                    // Проверяем, находится ли выбранная шашка на базе игрока
+                    if (!isPieceInOwnBase(row, col, PLAYER)) {
+                        alert('Після 30-го ходу ви повинні забирати шашки зі своєї бази!');
+                        return;
+                    }
+                }
+                
+                selectedPiece = { row, col };
+                initialPosition = { row, col };
+                hasMoved = false;
+                hasMadeJump = false; // Сбрасываем флаг при новом выборе шашки
+                findPossibleMoves();
+                updateBoardUI();
+                return;
+            }
+            
+            // If a piece is already selected
+            if (selectedPiece) {
+                // After a jump, if the player clicks on the same piece again, check if it реально переместилось
+                if (possibleJumps.length > 0 && 
+                    clickedPieceType === PLAYER && 
+                    selectedPiece.row === row && 
+                    selectedPiece.col === col) {
+                    
+                    // Проверяем, реально ли шашка переместилась от начального положения
+                    const reallyMoved = initialPosition.row !== row || initialPosition.col !== col;
+                    
+                    // Если шашка действительно переместилась, завершаем ход
+                    if (reallyMoved) {
+                        // Turn completed
+                        selectedPiece = null;
+                        possibleMoves = [];
+                        possibleJumps = [];
+                        hasMoved = false;
+                        initialPosition = null;
+                        hasMadeJump = false; // Сбрасываем флаг после завершения хода
+                        
+                        // Check for win condition
+                        if (checkWin(PLAYER)) {
+                            endGame(PLAYER);
+                            return;
+                        }
+                        
+                        // Switch to AI's turn
+                        currentPlayer = AI;
+                        updateBoardUI();
+                        
+                        // AI makes a move after a delay
+                        setTimeout(makeAIMove, 500);
+                        return;
+                    }
+                    // Если шашка вернулась в исходное положение, не завершаем ход
+                    return;
+                }
+                
+                // If player clicks another of their pieces, switch selection
+                // Запрещаем переключение на другую шашку, если уже был сделан прыжок
+                if (clickedPieceType === PLAYER && (selectedPiece.row !== row || selectedPiece.col !== col)) {
+                    if (hasMadeJump) {
+                        // Если уже был совершен прыжок, запрещаем выбирать другую шашку
+                        alert('Ви повинні завершити хід шашкою, якою почали стрибок!');
+                        return;
+                    }
+                    
+                    selectedPiece = { row, col };
+                    initialPosition = { row, col };
+                    hasMoved = false;
+                    findPossibleMoves();
+                    updateBoardUI();
+                    return;
+                }
+                
+                // If player clicks on a possible move destination
+                const isMoveDestination = possibleMoves.some(move => move.row === row && move.col === col);
+                const isJumpDestination = possibleJumps.some(jump => jump.row === row && jump.col === col);
+                
+                if (isMoveDestination || isJumpDestination) {
+                    // Save move to history
+                    moveHistory.push({
+                        from: { row: selectedPiece.row, col: selectedPiece.col },
+                        to: { row, col },
+                        player: currentPlayer
+                    });
+                    
+                    // Move the piece
+                    board[row][col] = board[selectedPiece.row][selectedPiece.col];
+                    board[selectedPiece.row][selectedPiece.col] = EMPTY;
+                    
+                    // Установим флаг, что шашка двигалась
+                    hasMoved = true;
+                    
+                    // After a jump, check for additional jumps
+                    if (isJumpDestination) {
+                        // Установим флаг, что был совершен прыжок
+                        hasMadeJump = true;
+                        
+                        selectedPiece = { row, col };
+                        possibleMoves = []; // Clear regular moves
+                        findPossibleJumps();
+                        
+                        // If there are more jumps available, allow player to continue
+                        if (possibleJumps.length > 0) {
+                            updateBoardUI();
+                            return;
+                        }
+                    }
+                    
+                    // For regular moves, check if the piece has moved from its initial position
+                    const finalPositionDiffersFromInitial = initialPosition && (initialPosition.row !== row || initialPosition.col !== col);
+                    
+                    // Only complete the turn if the piece has moved from its initial position
+                    if (finalPositionDiffersFromInitial) {
+                        // Turn completed
+                        selectedPiece = null;
+                        possibleMoves = [];
+                        possibleJumps = [];
+                        hasMadeJump = false; // Сбрасываем флаг после завершения хода
+                        initialPosition = null;
+                        
+                        // Check for win condition
+                        if (checkWin(PLAYER)) {
+                            endGame(PLAYER);
+                            return;
+                        }
+                        
+                        // Switch to AI's turn
+                        currentPlayer = AI;
+                        updateBoardUI();
+                        
+                        // AI makes a move after a delay
+                        setTimeout(makeAIMove, 500);
+                    } else {
+                        // If the piece returned to its initial position, just update the UI and allow further moves
+                        updateBoardUI();
+                    }
+                    return;
+                }
+                
+                // If player clicks elsewhere, deselect the piece
+                // Запрещаем отменять выбор, если уже был совершен прыжок
+                if (hasMadeJump) {
+                    alert('Ви повинні завершити хід шашкою, якою почали стрибок!');
+                    return;
+                }
+                
+                selectedPiece = null;
+                possibleMoves = [];
+                possibleJumps = [];
+                initialPosition = null;
+                updateBoardUI();
+            }
+        }
+        
+        // Find possible moves for the selected piece
+        function findPossibleMoves() {
+            if (!selectedPiece) return;
+            
+            possibleMoves = [];
+            possibleJumps = [];
+            
+            const { row, col } = selectedPiece;
+            const directions = [
+                {dr: -1, dc: 0}, // Up
+                {dr: 1, dc: 0},  // Down
+                {dr: 0, dc: -1}, // Left
+                {dr: 0, dc: 1},  // Right
+                {dr: -1, dc: -1}, // Up-Left
+                {dr: -1, dc: 1},  // Up-Right
+                {dr: 1, dc: -1},  // Down-Left
+                {dr: 1, dc: 1}    // Down-Right
+            ];
+            
+            // Check regular moves
+            directions.forEach(dir => {
+                const newRow = row + dir.dr;
+                const newCol = col + dir.dc;
+                
+                if (isValidPosition(newRow, newCol) && board[newRow][newCol] === EMPTY) {
+                    possibleMoves.push({ row: newRow, col: newCol });
+                }
+            });
+            
+            // Check jumps
+            findPossibleJumps();
+        }
+        
+        // Find possible jumps for the selected piece
+        function findPossibleJumps() {
+            if (!selectedPiece) return;
+            
+            possibleJumps = [];
+            const { row, col } = selectedPiece;
+            const directions = [
+                {dr: -1, dc: 0}, // Up
+                {dr: 1, dc: 0},  // Down
+                {dr: 0, dc: -1}, // Left
+                {dr: 0, dc: 1},  // Right
+                {dr: -1, dc: -1}, // Up-Left
+                {dr: -1, dc: 1},  // Up-Right
+                {dr: 1, dc: -1},  // Down-Left
+                {dr: 1, dc: 1}    // Down-Right
+            ];
+            
+            directions.forEach(dir => {
+                const jumpOverRow = row + dir.dr;
+                const jumpOverCol = col + dir.dc;
+                const landRow = row + 2 * dir.dr;
+                const landCol = col + 2 * dir.dc;
+                
+                if (
+                    isValidPosition(jumpOverRow, jumpOverCol) && 
+                    isValidPosition(landRow, landCol) && 
+                    board[jumpOverRow][jumpOverCol] !== EMPTY && // There's a piece to jump over
+                    board[landRow][landCol] === EMPTY // Landing spot is empty
+                ) {
+                    possibleJumps.push({ row: landRow, col: landCol });
+                }
+            });
+        }
+        
+        // Check if a position is valid (within board bounds)
+        function isValidPosition(row, col) {
+            return row >= 0 && row < BOARD_SIZE && col >= 0 && col < BOARD_SIZE;
+        }
+        
+        // Update the game status display
+        function updateStatus() {
+            if (gameOver) {
+                statusElement.textContent = currentPlayer === PLAYER ? 'Ви перемогли!' : 'Робот переміг!';
+            } else {
+                statusElement.textContent = currentPlayer === PLAYER ? 'Ваш хід' : 'Хід робота';
+            }
+        }
+        
+        // Check if a player has won
+        function checkWin(player) {
+            // Разная логика проверки победы для разных конфигураций
+            if (isTriangleConfig) {
+                // Для треугольной конфигурации - проверка, что игрок захватил вражескую базу
+                const enemyBase = player === PLAYER ? AI_INITIAL_POSITIONS_TRIANGLE : PLAYER_INITIAL_POSITIONS_TRIANGLE;
+                let piecesInEnemyBase = 0;
+                let totalPiecesNeeded = enemyBase.length;
+                
+                // Считаем количество шашек игрока на базе противника
+                for (const pos of enemyBase) {
+                    if (board[pos.row][pos.col] === player) {
+                        piecesInEnemyBase++;
+                    }
+                }
+                
+                // Победа - когда все позиции базы противника заняты
+                return piecesInEnemyBase === totalPiecesNeeded;
+            } else {
+                // Для квадратной конфигурации - оригинальная логика
+                const targetArea = player === PLAYER ? PLAYER_TARGET_AREA : AI_TARGET_AREA;
+                
+                // Count how many of player's pieces are in the target area
+                let piecesInTarget = 0;
+                
+                for (let row = 0; row < BOARD_SIZE; row++) {
+                    for (let col = 0; col < BOARD_SIZE; col++) {
+                        if (board[row][col] === player && targetArea.includes(`${row},${col}`)) {
+                            piecesInTarget++;
+                        }
+                    }
+                }
+                
+                // Win condition: All pieces in target area
+                return piecesInTarget === PLAYER_INITIAL_POSITIONS_SQUARE.length;
+            }
+        }
+        
+        // End the game
+        function endGame(winner) {
+            gameOver = true;
+            currentPlayer = winner;
+            winnerMessage.textContent = winner === PLAYER ? 'Ви перемогли!' : 'Робот переміг!';
+            gameOverElement.classList.add('active');
+            updateStatus();
+        }
+        
+        // AI move
+        function makeAIMove() {
+            if (gameOver || currentPlayer !== AI) return;
+            
+            try {
+                let move;
+                
+                // После 30 хода: если у ИИ есть шашки на своей базе, он должен двигать их
+                if (moveCount >= MUST_MOVE_FROM_BASE_AFTER_TURN && hasPiecesInOwnBase(AI)) {
+                    move = makeAIMoveFromBase();
+                } else {
+                    // Choose move based on difficulty
+                    switch (difficulty) {
+                        case 'easy':
+                            move = makeRandomAIMove();
+                            break;
+                        case 'medium':
+                            // 50% chance of making a smart move
+                            move = Math.random() < 0.5 ? makeSmartAIMove() : makeRandomAIMove();
+                            break;
+                        case 'hard':
+                            move = makeSmartAIMove();
+                            break;
+                        default:
+                            move = makeRandomAIMove();
+                    }
+                }
+                
+                if (!move) {
+                    // No valid moves, AI loses
+                    endGame(PLAYER);
+                    return;
+                }
+                
+                // We'll use this array to store all moves (initial + jumps) for animation
+                const allMoves = [
+                    {
+                        from: { row: move.from.row, col: move.from.col },
+                        to: { row: move.to.row, col: move.to.col }
+                    }
+                ];
+                
+                // Optimize hard difficulty with a max jump limit to prevent lagging
+                // Also enable medium to do 2 jumps
+                let maxJumps = 1; // Default for easy is 1 jump (no additional jumps)
+                
+                // Medium can do 2 consecutive jumps
+                if (difficulty === 'medium') maxJumps = 2;
+                
+                // Hard can do 3 consecutive jumps (limited to prevent lag)
+                if (difficulty === 'hard') maxJumps = 3;
+                
+                // Set a timeout to prevent long computations
+                const startTime = Date.now();
+                const MAX_COMPUTATION_TIME = 1000; // 1 second max for AI thinking
+                
+                // If medium or hard difficulty, check for additional jumps
+                if (difficulty === 'medium' || difficulty === 'hard') {
+                    let currentPosition = { row: move.to.row, col: move.to.col };
+                    let jumpCount = 0;
+                    
+                    // Continue jumping as long as there are valid jumps and we haven't reached max jumps
+                    while (jumpCount < maxJumps - 1) { // -1 because we already did one jump/move
+                        // Check if we're taking too long
+                        if (Date.now() - startTime > MAX_COMPUTATION_TIME) {
+                            console.log("AI computation taking too long, stopping additional jumps");
+                            break; // Stop if taking too long
+                        }
+                        
+                        // Check for possible jumps from the new position (only consider jumps, not regular moves)
+                        const additionalJumps = findJumpsForPiece(currentPosition.row, currentPosition.col);
+                        
+                        if (additionalJumps.length > 0) {
+                            // For medium difficulty, choose a random additional jump
+                            // For hard difficulty, evaluate and choose the best jump
+                            let nextJump;
+                            
+                            if (difficulty === 'medium') {
+                                // Medium difficulty picks a random jump
+                                nextJump = additionalJumps[Math.floor(Math.random() * additionalJumps.length)];
+                            } else {
+                                // Hard difficulty evaluates the best jump
+                                let bestJump = null;
+                                let bestScore = -Infinity;
+                                
+                                for (const jump of additionalJumps) {
+                                    const score = evaluateMove({ row: currentPosition.row, col: currentPosition.col }, jump);
+                                    if (score > bestScore) {
+                                        bestScore = score;
+                                        bestJump = jump;
+                                    }
+                                }
+                                
+                                nextJump = bestJump;
+                            }
+                            
+                            if (nextJump) {
+                                // Add this jump to our list of moves for animation
+                                allMoves.push({
+                                    from: { row: currentPosition.row, col: currentPosition.col },
+                                    to: { row: nextJump.row, col: nextJump.col }
+                                });
+                                
+                                // Update current position (but don't actually move the piece yet)
+                                currentPosition = { row: nextJump.row, col: nextJump.col };
+                                jumpCount++;
+                            } else {
+                                break;
+                            }
+                        } else {
+                            break;
+                        }
+                    }
+                }
+                
+                // Remember the last piece moved by AI
+                lastMovedPieceByAI = { row: allMoves[allMoves.length - 1].to.row, col: allMoves[allMoves.length - 1].to.col };
+                
+                // Now perform the moves with animation
+                performAIMovesWithAnimation(allMoves, 0);
+            } catch (error) {
+                console.error("Error in AI move:", error);
+                // Fallback to ensure game doesn't get stuck
+                currentPlayer = PLAYER;
+                updateBoardUI();
+            }
+        }
+        
+        // Function for AI to move pieces from its base after turn 30
+        function makeAIMoveFromBase() {
+            const aiBasePositions = [];
+            
+            // Find all AI pieces in AI base
+            for (const pos of AI_INITIAL_POSITIONS) {
+                if (board[pos.row][pos.col] === AI) {
+                    aiBasePositions.push({ row: pos.row, col: pos.col });
+                }
+            }
+            
+            // Shuffle the pieces for randomness
+            shuffleArray(aiBasePositions);
+            
+            // Try to find a move for any piece from the base
+            for (const piece of aiBasePositions) {
+                // Find moves for this piece
+                const moves = findMovesForPiece(piece.row, piece.col);
+                
+                if (moves.length > 0) {
+                    // For hard difficulty, pick a move that gets closest to target
+                    if (difficulty === 'hard') {
+                        let bestMove = null;
+                        let bestScore = -Infinity;
+                        
+                        for (const move of moves) {
+                            const score = evaluateMove(piece, move);
+                            if (score > bestScore) {
+                                bestScore = score;
+                                bestMove = move;
+                            }
+                        }
+                        
+                        return {
+                            from: { row: piece.row, col: piece.col },
+                            to: bestMove
+                        };
+                    } else {
+                        // Pick a random move for other difficulties
+                        const randomMove = moves[Math.floor(Math.random() * moves.length)];
+                        return {
+                            from: { row: piece.row, col: piece.col },
+                            to: randomMove
+                        };
+                    }
+                }
+            }
+            
+            // If no moves from base are possible, fall back to regular move strategy
+            return null;
+        }
+        
+        // Find all possible jumps for a piece (without regular moves)
+        function findJumpsForPiece(row, col) {
+            const jumps = [];
+            const directions = [
+                {dr: -1, dc: 0}, // Up
+                {dr: 1, dc: 0},  // Down
+                {dr: 0, dc: -1}, // Left
+                {dr: 0, dc: 1},  // Right
+                {dr: -1, dc: -1}, // Up-Left
+                {dr: -1, dc: 1},  // Up-Right
+                {dr: 1, dc: -1},  // Down-Left
+                {dr: 1, dc: 1}    // Down-Right
+            ];
+            
+            // Check for jump moves
+            directions.forEach(dir => {
+                const jumpOverRow = row + dir.dr;
+                const jumpOverCol = col + dir.dc;
+                const landRow = row + 2 * dir.dr;
+                const landCol = col + 2 * dir.dc;
+                
+                if (
+                    isValidPosition(jumpOverRow, jumpOverCol) && 
+                    isValidPosition(landRow, landCol) && 
+                    board[jumpOverRow][jumpOverCol] !== EMPTY && 
+                    board[landRow][landCol] === EMPTY
+                ) {
+                    jumps.push({ row: landRow, col: landCol });
+                }
+            });
+            
+            return jumps;
+        }
+        
+        // Make a random AI move
+        function makeRandomAIMove() {
+            const aiPieces = [];
+            const aiPiecesInBase = [];
+            const aiPiecesOutsideBase = [];
+            const aiPiecesInEnemyBase = []; // NEW: Track pieces in enemy base
+            
+            // Find all AI pieces and categorize them
+            for (let row = 0; row < BOARD_SIZE; row++) {
+                for (let col = 0; col < BOARD_SIZE; col++) {
+                    if (board[row][col] === AI) {
+                        const piece = { row, col };
+                        aiPieces.push(piece);
+                        
+                        // Проверяем, находится ли шашка в начальной базе ИИ
+                        if (isPieceInOwnBase(row, col, AI)) {
+                            aiPiecesInBase.push(piece);
+                        } else if (isPieceInEnemyBase(row, col, AI)) {
+                            // NEW: Check if piece is in enemy base
+                            aiPiecesInEnemyBase.push(piece);
+                        } else {
+                            aiPiecesOutsideBase.push(piece);
+                        }
+                    }
+                }
+            }
+            
+            // NEW: Avoid using the last moved piece if possible
+            let availablePieces = aiPieces.filter(piece => 
+                !lastMovedPieceByAI || 
+                piece.row !== lastMovedPieceByAI.row || 
+                piece.col !== lastMovedPieceByAI.col
+            );
+            
+            // If all pieces are the last moved piece, we have to use it
+            if (availablePieces.length === 0) {
+                availablePieces = aiPieces;
+            }
+            
+            // Даже для слабого ИИ, иногда пытаемся двигаться к цели (20% шанс)
+            const shouldTargetEnemyBase = Math.random() < 0.2;
+            
+            if (shouldTargetEnemyBase) {
+                // Sort pieces by distance to target (closest first)
+                // Exclude pieces already in enemy base
+                const piecesToConsider = availablePieces.filter(piece => 
+                    !isPieceInEnemyBase(piece.row, piece.col, AI)
+                );
+                
+                if (piecesToConsider.length > 0) {
+                    piecesToConsider.sort((a, b) => {
+                        const distA = getDistanceToTarget(a.row, a.col, AI);
+                        const distB = getDistanceToTarget(b.row, b.col, AI);
+                        return distA - distB;
+                    });
+                    
+                    // Try to move pieces closest to target first
+                    for (const piece of piecesToConsider) {
+                        const moves = findMovesForPiece(piece.row, piece.col);
+                        
+                        if (moves.length > 0) {
+                            // Find moves that get closer to target
+                            const currentDist = getDistanceToTarget(piece.row, piece.col, AI);
+                            const betterMoves = moves.filter(move => 
+                                getDistanceToTarget(move.row, move.col, AI) < currentDist
+                            );
+                            
+                            if (betterMoves.length > 0) {
+                                const bestMove = betterMoves[Math.floor(Math.random() * betterMoves.length)];
+                                return {
+                                    from: { row: piece.row, col: piece.col },
+                                    to: bestMove
+                                };
+                            }
+                        }
+                    }
+                }
+            }
+            
+            // NEW: Only move pieces in enemy base if absolutely necessary (5% chance)
+            // or if there are no other pieces to move
+            if (aiPiecesInEnemyBase.length > 0 && Math.random() < 0.05) {
+                shuffleArray(aiPiecesInEnemyBase);
+                
+                for (const piece of aiPiecesInEnemyBase) {
+                    // Skip if this was the last moved piece
+                    if (lastMovedPieceByAI && 
+                        piece.row === lastMovedPieceByAI.row && 
+                        piece.col === lastMovedPieceByAI.col) {
+                        continue;
+                    }
+                    
+                    const moves = findMovesForPiece(piece.row, piece.col);
+                    
+                    if (moves.length > 0) {
+                        const randomMove = moves[Math.floor(Math.random() * moves.length)];
+                        return {
+                            from: { row: piece.row, col: piece.col },
+                            to: randomMove
+                        };
+                    }
+                }
+            }
+            
+            // Приоритет: сначала пытаемся вывести шашки из базы (с вероятностью 95%)
+            if (aiPiecesInBase.length > 0 && Math.random() < 0.95) {
+                // Exclude the last moved piece if possible
+                const piecesToConsider = aiPiecesInBase.filter(piece => 
+                    !lastMovedPieceByAI || 
+                    piece.row !== lastMovedPieceByAI.row || 
+                    piece.col !== lastMovedPieceByAI.col
+                );
+                
+                const piecesToUse = piecesToConsider.length > 0 ? piecesToConsider : aiPiecesInBase;
+                
+                // Сортируем шашки в базе случайным образом
+                shuffleArray(piecesToUse);
+                
+                for (const piece of piecesToUse) {
+                    // Находим все возможные ходы для шашки
+                    const moves = findMovesForPiece(piece.row, piece.col);
+                    
+                    if (moves.length > 0) {
+                        // Фильтруем ходы, которые ведут из базы
+                        const movesOutOfBase = moves.filter(move => !isPieceInOwnBase(move.row, move.col, AI));
+                        
+                        if (movesOutOfBase.length > 0) {
+                            // Выбираем случайный ход, ведущий из базы
+                            const randomMove = movesOutOfBase[Math.floor(Math.random() * movesOutOfBase.length)];
+                            return {
+                                from: { row: piece.row, col: piece.col },
+                                to: randomMove
+                            };
+                        }
+                        
+                        // Если нет ходов, ведущих из базы, выбираем любой ход
+                        const randomMove = moves[Math.floor(Math.random() * moves.length)];
+                        return {
+                            from: { row: piece.row, col: piece.col },
+                            to: randomMove
+                        };
+                    }
+                }
+            }
+            
+            // Далее пытаемся двигать шашки, которые уже вне базы, не возвращая их обратно
+            if (aiPiecesOutsideBase.length > 0) {
+                // Exclude the last moved piece if possible
+                const piecesToConsider = aiPiecesOutsideBase.filter(piece => 
+                    !lastMovedPieceByAI || 
+                    piece.row !== lastMovedPieceByAI.row || 
+                    piece.col !== lastMovedPieceByAI.col
+                );
+                
+                const piecesToUse = piecesToConsider.length > 0 ? piecesToConsider : aiPiecesOutsideBase;
+                
+                shuffleArray(piecesToUse);
+                
+                for (const piece of piecesToUse) {
+                    const moves = findMovesForPiece(piece.row, piece.col);
+                    
+                    if (moves.length > 0) {
+                        // Фильтруем ходы, которые НЕ ведут обратно в базу
+                        const moveNotBackToBase = moves.filter(move => !isPieceInOwnBase(move.row, move.col, AI));
+                        
+                        if (moveNotBackToBase.length > 0) {
+                            // Предпочитаем ходы, которые не ведут обратно в базу
+                            const randomMove = moveNotBackToBase[Math.floor(Math.random() * moveNotBackToBase.length)];
+                            return {
+                                from: { row: piece.row, col: piece.col },
+                                to: randomMove
+                            };
+                        }
+                        
+                        // Если все ходы ведут в базу, выбираем любой (но с меньшей вероятностью)
+                        if (Math.random() < 0.1) { // Уменьшаем шанс вернуться в базу до 10%
+                            const randomMove = moves[Math.floor(Math.random() * moves.length)];
+                            return {
+                                from: { row: piece.row, col: piece.col },
+                                to: randomMove
+                            };
+                        }
+                        // В 90% случаев пытаемся найти другую шашку для хода вместо возврата в базу
+                        continue;
+                    }
+                }
+            }
+            
+            // Если все предыдущие стратегии не сработали, попробуем даже шашки в базе врага
+            if (aiPiecesInEnemyBase.length > 0) {
+                shuffleArray(aiPiecesInEnemyBase);
+                
+                for (const piece of aiPiecesInEnemyBase) {
+                    const moves = findMovesForPiece(piece.row, piece.col);
+                    
+                    if (moves.length > 0) {
+                        const randomMove = moves[Math.floor(Math.random() * moves.length)];
+                        return {
+                            from: { row: piece.row, col: piece.col },
+                            to: randomMove
+                        };
+                    }
+                }
+            }
+            
+            // Если все предыдущие стратегии не сработали, возвращаемся к полностью случайному выбору
+            shuffleArray(aiPieces);
+            
+            for (const piece of aiPieces) {
+                const moves = findMovesForPiece(piece.row, piece.col);
+                
+                if (moves.length > 0) {
+                    // Даже при случайном выборе предпочитаем ходы, не ведущие в базу
+                    const movesNotToBase = moves.filter(move => !isPieceInOwnBase(move.row, move.col, AI));
+                    
+                    if (movesNotToBase.length > 0) {
+                        const randomMove = movesNotToBase[Math.floor(Math.random() * movesNotToBase.length)];
+                        return {
+                            from: { row: piece.row, col: piece.col },
+                            to: randomMove
+                        };
+                    }
+                    
+                    // Если все ходы ведут в базу, используем любой ход
+                    const randomMove = moves[Math.floor(Math.random() * moves.length)];
+                    return {
+                        from: { row: piece.row, col: piece.col },
+                        to: randomMove
+                    };
+                }
+            }
+            
+            // No valid moves found
+            return null;
+        }
+        
+        // Make a smarter AI move
+        function makeSmartAIMove() {
+            const aiPieces = [];
+            const aiPiecesInEnemyBase = []; // NEW: Track pieces in enemy base
+            const normalPieces = []; // Pieces not in enemy base
+            
+            // Find all AI pieces and categorize them
+            for (let row = 0; row < BOARD_SIZE; row++) {
+                for (let col = 0; col < BOARD_SIZE; col++) {
+                    if (board[row][col] === AI) {
+                        const piece = { row, col };
+                        aiPieces.push(piece);
+                        
+                        // NEW: Categorize based on enemy base status
+                        if (isPieceInEnemyBase(row, col, AI)) {
+                            aiPiecesInEnemyBase.push(piece);
+                        } else {
+                            normalPieces.push(piece);
+                        }
+                    }
+                }
+            }
+            
+            // NEW: Try to avoid using the same piece as last time
+            // or pieces already in enemy base
+            let piecesToConsider = normalPieces.filter(piece => 
+                !lastMovedPieceByAI || 
+                piece.row !== lastMovedPieceByAI.row || 
+                piece.col !== lastMovedPieceByAI.col
+            );
+            
+            // If we have no normal pieces to consider, consider all normal pieces
+            if (piecesToConsider.length === 0) {
+                piecesToConsider = normalPieces;
+            }
+            
+            // If we have no normal pieces at all, only then consider pieces in enemy base
+            // with a 10% chance of moving them
+            if (piecesToConsider.length === 0 || Math.random() < 0.1) {
+                // Only consider pieces in enemy base that weren't last moved
+                const enemyBasePieces = aiPiecesInEnemyBase.filter(piece => 
+                    !lastMovedPieceByAI || 
+                    piece.row !== lastMovedPieceByAI.row || 
+                    piece.col !== lastMovedPieceByAI.col
+                );
+                
+                if (enemyBasePieces.length > 0) {
+                    piecesToConsider = piecesToConsider.concat(enemyBasePieces);
+                }
+            }
+            
+            // If we still have no pieces to consider, use all pieces as last resort
+            if (piecesToConsider.length === 0) {
+                piecesToConsider = aiPieces;
+            }
+            
+            // Optimize by prioritizing pieces closer to the target area first
+            // This can help reduce the search space and improve performance
+            piecesToConsider.sort((a, b) => {
+                // If a piece is in enemy base, it's less preferred
+                const aInEnemyBase = isPieceInEnemyBase(a.row, a.col, AI) ? 1000 : 0;
+                const bInEnemyBase = isPieceInEnemyBase(b.row, b.col, AI) ? 1000 : 0;
+                
+                const distA = getDistanceToTarget(a.row, a.col, AI) + aInEnemyBase;
+                const distB = getDistanceToTarget(b.row, b.col, AI) + bInEnemyBase;
+                
+                return distA - distB; // Sort closest to target first
+            });
+            
+            // Limit the number of pieces we evaluate to avoid lag
+            // Only consider up to 8 pieces closest to the target
+            const piecesToEvaluate = piecesToConsider.slice(0, 8);
+            
+            let bestMove = null;
+            let bestScore = -Infinity;
+            
+            // Evaluate each piece and potential move
+            for (const piece of piecesToEvaluate) {
+                const moves = findMovesForPiece(piece.row, piece.col);
+                
+                // Skip this piece if no moves are available
+                if (moves.length === 0) continue;
+                
+                // First, check if there are any jump moves (these should be prioritized)
+                const jumpMoves = moves.filter(move => 
+                    Math.abs(move.row - piece.row) > 1 || Math.abs(move.col - piece.col) > 1
+                );
+                
+                // If there are jump moves, prioritize these for evaluation
+                const movesToEvaluate = jumpMoves.length > 0 ? jumpMoves : moves;
+                
+                for (const move of movesToEvaluate) {
+                    // Calculate the score for this move
+                    const score = evaluateMove(piece, move);
+                    
+                    if (score > bestScore) {
+                        bestScore = score;
+                        bestMove = {
+                            from: { row: piece.row, col: piece.col },
+                            to: move
+                        };
+                    }
+                    
+                    // Performance optimization: if we found a very good move (jump that brings us closer),
+                    // we can stop evaluating further to improve performance
+                    if (jumpMoves.length > 0 && score > 20) {
+                        return bestMove;
+                    }
+                }
+            }
+            
+            return bestMove;
+        }
+        
+        // Find all possible moves for a piece
+        function findMovesForPiece(row, col) {
+            const moves = [];
+            const jumps = [];
+            const directions = [
+                {dr: -1, dc: 0}, // Up
+                {dr: 1, dc: 0},  // Down
+                {dr: 0, dc: -1}, // Left
+                {dr: 0, dc: 1},  // Right
+                {dr: -1, dc: -1}, // Up-Left
+                {dr: -1, dc: 1},  // Up-Right
+                {dr: 1, dc: -1},  // Down-Left
+                {dr: 1, dc: 1}    // Down-Right
+            ];
+            
+            // First check for jump moves (prioritized)
+            directions.forEach(dir => {
+                const jumpOverRow = row + dir.dr;
+                const jumpOverCol = col + dir.dc;
+                const landRow = row + 2 * dir.dr;
+                const landCol = col + 2 * dir.dc;
+                
+                if (
+                    isValidPosition(jumpOverRow, jumpOverCol) && 
+                    isValidPosition(landRow, landCol) && 
+                    board[jumpOverRow][jumpOverCol] !== EMPTY && 
+                    board[landRow][landCol] === EMPTY
+                ) {
+                    jumps.push({ row: landRow, col: landCol });
+                }
+            });
+            
+            // If there are jump moves, return only those
+            if (jumps.length > 0) {
+                return jumps;
+            }
+            
+            // Check regular moves
+            directions.forEach(dir => {
+                const newRow = row + dir.dr;
+                const newCol = col + dir.dc;
+                
+                if (isValidPosition(newRow, newCol) && board[newRow][newCol] === EMPTY) {
+                    moves.push({ row: newRow, col: newCol });
+                }
+            });
+            
+            return moves;
+        }
+        
+        // Evaluate how good a move is
+        function evaluateMove(piece, move) {
+            let score = 0;
+            
+            // Quick check if it's a jump move (give it a baseline score boost)
+            const isJumpMove = Math.abs(piece.row - move.row) > 1 || Math.abs(piece.col - move.col) > 1;
+            if (isJumpMove) {
+                score += 15; // Jumps are generally good moves
+            }
+            
+            // Distance to target area (avoid recalculating if not needed)
+            // Only calculate the distance to target if it's not clearly a good jump move
+            if (!isJumpMove || score < 20) {
+                const pieceDistToTarget = getDistanceToTarget(piece.row, piece.col, AI);
+                const moveDistToTarget = getDistanceToTarget(move.row, move.col, AI);
+                
+                // Prioritize moves that get closer to the target
+                const distanceImprovement = pieceDistToTarget - moveDistToTarget;
+                score += distanceImprovement * 10;
+            }
+            
+            // Bonus for entering the target area (a very good move)
+            if (AI_TARGET_AREA.includes(`${move.row},${move.col}`)) {
+                score += 50;
+            }
+            
+            // Penalty for moving back to own base (usually not productive)
+            if (isPieceInOwnBase(move.row, move.col, AI)) {
+                score -= 5;
+            }
+            
+            // NEW: Penalty for using the same piece as last move
+            if (lastMovedPieceByAI && piece.row === lastMovedPieceByAI.row && piece.col === lastMovedPieceByAI.col) {
+                score -= 25; // Significant penalty to avoid moving the same piece repeatedly
+            }
+            
+            // NEW: Heavy penalty for moving a piece that's already in the enemy base
+            if (isPieceInEnemyBase(piece.row, piece.col, AI)) {
+                score -= 40; // Strong disincentive to move pieces that already reached the goal
+            }
+            
+            // Small random factor to prevent completely deterministic behavior
+            // Lower value for more deterministic moves (reduces randomness)
+            score += Math.random() * 1;
+            
+            return score;
+        }
+        
+        // Calculate Manhattan distance from a position to the closest target position
+        function getDistanceToTarget(row, col, player) {
+            const targetArea = player === PLAYER ? PLAYER_TARGET_AREA : AI_TARGET_AREA;
+            let minDistance = Infinity;
+            
+            targetArea.forEach(target => {
+                const [targetRow, targetCol] = target.split(',').map(Number);
+                const distance = Math.abs(row - targetRow) + Math.abs(col - targetCol);
+                minDistance = Math.min(minDistance, distance);
+            });
+            
+            return minDistance;
+        }
+        
+        // Shuffle an array (Fisher-Yates algorithm)
+        function shuffleArray(array) {
+            for (let i = array.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [array[i], array[j]] = [array[j], array[i]];
+            }
+            return array;
+        }
+        
+        // Undo the last move(s)
+        function undoMove() {
+            if (moveHistory.length === 0 || gameOver) return;
+            
+            // If it's player's turn, undo both AI's and player's last moves
+            if (currentPlayer === PLAYER && moveHistory.length >= 2) {
+                // Undo AI's move
+                const aiMove = moveHistory.pop();
+                board[aiMove.to.row][aiMove.to.col] = EMPTY;
+                board[aiMove.from.row][aiMove.from.col] = AI;
+                
+                // Undo player's move
+                const playerMove = moveHistory.pop();
+                board[playerMove.to.row][playerMove.to.col] = EMPTY;
+                board[playerMove.from.row][playerMove.from.col] = PLAYER;
+                
+                // Decrease move counter by 1 (а не 2, так как 1 ход = ход обоих игроков)
+                moveCount -= 1;
+            }
+            // If it's AI's turn, just undo player's last move
+            else if (currentPlayer === AI && moveHistory.length >= 1) {
+                const playerMove = moveHistory.pop();
+                board[playerMove.to.row][playerMove.to.col] = EMPTY;
+                board[playerMove.from.row][playerMove.from.col] = PLAYER;
+                currentPlayer = PLAYER; // Switch back to player's turn
+                
+                // Не уменьшаем счетчик в этом случае, так как ход не был полностью завершен
+            }
+            
+            // Update move counter
+            updateMoveCounter();
+            
+            // Reset selection state
+            selectedPiece = null;
+            possibleMoves = [];
+            possibleJumps = [];
+            
+            // Update the board
+            updateBoardUI();
+        }
+        
+        // Update the undo button enabled/disabled state
+        function updateUndoButton() {
+            undoButton.disabled = moveHistory.length === 0 || gameOver;
+            undoButton.style.opacity = moveHistory.length === 0 || gameOver ? '0.5' : '1';
+        }
+        
+        // Update difficulty dots based on current difficulty
+        function updateDifficultyDots() {
+            const dotsToShow = difficulty === 'easy' ? 1 : difficulty === 'medium' ? 2 : 3;
+            
+            menuDots.forEach((dot, index) => {
+                if (index < dotsToShow) {
+                    dot.classList.add('active');
+                    dot.classList.remove('hidden');
+                } else {
+                    dot.classList.remove('active');
+                    dot.classList.add('hidden');
+                }
+            });
+        }
+        
+        // Cycle through difficulty levels
+        function cycleDifficulty() {
+            const currentIndex = difficultyLevels.indexOf(difficulty);
+            const nextIndex = (currentIndex + 1) % difficultyLevels.length;
+            difficulty = difficultyLevels[nextIndex];
+            
+            // Update indicator text
+            difficultyIndicator.textContent = difficultyNames[difficulty];
+            
+            // Show indicator briefly
+            difficultyIndicator.classList.add('show');
+            setTimeout(() => {
+                difficultyIndicator.classList.remove('show');
+            }, 1500);
+            
+            // Update dots - simply show/hide without animation
+            updateDifficultyDots();
+        }
+        
+        // Event listeners with improved touch support for all devices
+        newGameButton.addEventListener('click', initGame);
+        newGameButton.addEventListener('touchend', function(e) {
+            e.preventDefault();
+            initGame();
+        }, { passive: false });
+        
+        playAgainButton.addEventListener('click', initGame);
+        playAgainButton.addEventListener('touchend', function(e) {
+            e.preventDefault();
+            initGame();
+        }, { passive: false });
+        
+        undoButton.addEventListener('click', undoMove);
+        undoButton.addEventListener('touchend', function(e) {
+            e.preventDefault();
+            undoMove();
+        }, { passive: false });
+        
+        difficultyButton.addEventListener('click', cycleDifficulty);
+        difficultyButton.addEventListener('touchend', function(e) {
+            e.preventDefault();
+            cycleDifficulty();
+        }, { passive: false });
+        
+        // Add meta viewport tag to ensure proper scaling
+        document.addEventListener('DOMContentLoaded', function() {
+            const metaViewport = document.querySelector('meta[name="viewport"]');
+            if (metaViewport) {
+                metaViewport.content = 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no';
+            }
+        });
+        
+        // Function to check if a player has pieces in their own starting base
+        function hasPiecesInOwnBase(player) {
+            const ownBase = player === PLAYER ? PLAYER_INITIAL_POSITIONS : AI_INITIAL_POSITIONS;
+            
+            for (const pos of ownBase) {
+                if (board[pos.row][pos.col] === player) {
+                    return true;
+                }
+            }
+            
+            return false;
+        }
+        
+        // Function to check if a specific piece is in player's own base
+        function isPieceInOwnBase(row, col, player) {
+            const ownBase = player === PLAYER ? PLAYER_INITIAL_POSITIONS : AI_INITIAL_POSITIONS;
+            
+            for (const pos of ownBase) {
+                if (pos.row === row && pos.col === col) {
+                    return true;
+                }
+            }
+            
+            return false;
+        }
+        
+        // Function to check if a piece is in the enemy's base
+        function isPieceInEnemyBase(row, col, player) {
+            const enemyBase = player === PLAYER ? AI_INITIAL_POSITIONS : PLAYER_INITIAL_POSITIONS;
+            
+            for (const pos of enemyBase) {
+                if (pos.row === row && pos.col === col) {
+                    return true;
+                }
+            }
+            
+            return false;
+        }
+        
+        // Update move counter display
+        function updateMoveCounter() {
+            moveCounterElement.textContent = `Хід: ${moveCount}`;
+        }
+        
+        // Function to toggle between square and triangle configurations
+        function toggleConfiguration() {
+            isTriangleConfig = !isTriangleConfig;
+            
+            if (isTriangleConfig) {
+                // Switch to triangle configuration
+                AI_INITIAL_POSITIONS = AI_INITIAL_POSITIONS_TRIANGLE;
+                PLAYER_INITIAL_POSITIONS = PLAYER_INITIAL_POSITIONS_TRIANGLE;
+                squareIcon.style.display = 'none';
+                triangleIcon.style.display = 'block';
+            } else {
+                // Switch to square configuration
+                AI_INITIAL_POSITIONS = AI_INITIAL_POSITIONS_SQUARE;
+                PLAYER_INITIAL_POSITIONS = PLAYER_INITIAL_POSITIONS_SQUARE;
+                squareIcon.style.display = 'block';
+                triangleIcon.style.display = 'none';
+            }
+            
+            // Update target areas
+            PLAYER_TARGET_AREA = AI_INITIAL_POSITIONS.map(pos => `${pos.row},${pos.col}`);
+            AI_TARGET_AREA = PLAYER_INITIAL_POSITIONS.map(pos => `${pos.row},${pos.col}`);
+            
+            // Restart the game with new configuration
+            initGame();
+        }
+        
+        // Event listeners for configuration button
+        configButton.addEventListener('click', toggleConfiguration);
+        configButton.addEventListener('touchend', function(e) {
+            e.preventDefault();
+            toggleConfiguration();
+        }, { passive: false });
+        
+        // Helper function to perform AI moves with animation
+        function performAIMovesWithAnimation(moves, index) {
+            if (index >= moves.length) {
+                // All moves completed, check for win and end AI turn
+                if (checkWin(AI)) {
+                    updateBoardUI();
+                    endGame(AI);
+                    return;
+                }
+                
+                // Switch to player's turn
+                currentPlayer = PLAYER;
+                
+                // Increment move counter after AI's turn
+                moveCount++;
+                updateMoveCounter();
+                
+                updateBoardUI();
+                return;
+            }
+            
+            const currentMove = moves[index];
+            
+            // Save move to history
+            moveHistory.push({
+                from: { row: currentMove.from.row, col: currentMove.from.col },
+                to: { row: currentMove.to.row, col: currentMove.to.col },
+                player: AI
+            });
+            
+            // Execute the move
+            board[currentMove.to.row][currentMove.to.col] = board[currentMove.from.row][currentMove.from.col];
+            board[currentMove.from.row][currentMove.from.col] = EMPTY;
+            
+            // Update UI after this single move
+            updateBoardUI();
+            
+            // Schedule the next move after delay
+            setTimeout(() => {
+                performAIMovesWithAnimation(moves, index + 1);
+            }, AI_MOVE_ANIMATION_DELAY);
+        }
+        
+        // Initialize the game
+        initGame();
+    </script>
+</body>
+</html> 

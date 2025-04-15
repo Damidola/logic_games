@@ -471,7 +471,7 @@
         
         // Animation delay between moves (in milliseconds)
         const AI_MOVE_ANIMATION_DELAY = 400;
-
+        
         // Initialize the game
         function initGame() {
             // Create empty board
@@ -902,39 +902,39 @@
             if (gameOver || currentPlayer !== AI) return;
             
             try {
-                let move;
-                
-                // После 30 хода: если у ИИ есть шашки на своей базе, он должен двигать их
-                if (moveCount >= MUST_MOVE_FROM_BASE_AFTER_TURN && hasPiecesInOwnBase(AI)) {
-                    move = makeAIMoveFromBase();
-                } else {
-                    // Choose move based on difficulty
-                    switch (difficulty) {
-                        case 'easy':
-                            move = makeRandomAIMove();
-                            break;
-                        case 'medium':
-                            // 50% chance of making a smart move
-                            move = Math.random() < 0.5 ? makeSmartAIMove() : makeRandomAIMove();
-                            break;
-                        case 'hard':
-                            move = makeSmartAIMove();
-                            break;
-                        default:
-                            move = makeRandomAIMove();
-                    }
+            let move;
+            
+            // После 30 хода: если у ИИ есть шашки на своей базе, он должен двигать их
+            if (moveCount >= MUST_MOVE_FROM_BASE_AFTER_TURN && hasPiecesInOwnBase(AI)) {
+                move = makeAIMoveFromBase();
+            } else {
+                // Choose move based on difficulty
+                switch (difficulty) {
+                    case 'easy':
+                        move = makeRandomAIMove();
+                        break;
+                    case 'medium':
+                        // 50% chance of making a smart move
+                        move = Math.random() < 0.5 ? makeSmartAIMove() : makeRandomAIMove();
+                        break;
+                    case 'hard':
+                        move = makeSmartAIMove();
+                        break;
+                    default:
+                        move = makeRandomAIMove();
                 }
-                
-                if (!move) {
-                    // No valid moves, AI loses
-                    endGame(PLAYER);
-                    return;
-                }
-                
+            }
+            
+            if (!move) {
+                // No valid moves, AI loses
+                endGame(PLAYER);
+                return;
+            }
+            
                 // We'll use this array to store all moves (initial + jumps) for animation
                 const allMoves = [
                     {
-                        from: { row: move.from.row, col: move.from.col },
+                from: { row: move.from.row, col: move.from.col },
                         to: { row: move.to.row, col: move.to.col }
                     }
                 ];
@@ -955,7 +955,7 @@
                 
                 // If medium or hard difficulty, check for additional jumps
                 if (difficulty === 'medium' || difficulty === 'hard') {
-                    let currentPosition = { row: move.to.row, col: move.to.col };
+                let currentPosition = { row: move.to.row, col: move.to.col };
                     let jumpCount = 0;
                     
                     // Continue jumping as long as there are valid jumps and we haven't reached max jumps
@@ -967,9 +967,9 @@
                         }
                         
                         // Check for possible jumps from the new position (only consider jumps, not regular moves)
-                        const additionalJumps = findJumpsForPiece(currentPosition.row, currentPosition.col);
-                        
-                        if (additionalJumps.length > 0) {
+                    const additionalJumps = findJumpsForPiece(currentPosition.row, currentPosition.col);
+                    
+                    if (additionalJumps.length > 0) {
                             // For medium difficulty, choose a random additional jump
                             // For hard difficulty, evaluate and choose the best jump
                             let nextJump;
@@ -979,34 +979,34 @@
                                 nextJump = additionalJumps[Math.floor(Math.random() * additionalJumps.length)];
                             } else {
                                 // Hard difficulty evaluates the best jump
-                                let bestJump = null;
-                                let bestScore = -Infinity;
-                                
-                                for (const jump of additionalJumps) {
-                                    const score = evaluateMove({ row: currentPosition.row, col: currentPosition.col }, jump);
-                                    if (score > bestScore) {
-                                        bestScore = score;
-                                        bestJump = jump;
-                                    }
-                                }
-                                
+                        let bestJump = null;
+                        let bestScore = -Infinity;
+                        
+                        for (const jump of additionalJumps) {
+                            const score = evaluateMove({ row: currentPosition.row, col: currentPosition.col }, jump);
+                            if (score > bestScore) {
+                                bestScore = score;
+                                bestJump = jump;
+                            }
+                        }
+                        
                                 nextJump = bestJump;
                             }
                             
                             if (nextJump) {
                                 // Add this jump to our list of moves for animation
                                 allMoves.push({
-                                    from: { row: currentPosition.row, col: currentPosition.col },
+                                from: { row: currentPosition.row, col: currentPosition.col },
                                     to: { row: nextJump.row, col: nextJump.col }
                                 });
                                 
                                 // Update current position (but don't actually move the piece yet)
                                 currentPosition = { row: nextJump.row, col: nextJump.col };
                                 jumpCount++;
-                            } else {
-                                break;
-                            }
                         } else {
+                                break;
+                        }
+                    } else {
                             break;
                         }
                     }
@@ -1020,8 +1020,8 @@
             } catch (error) {
                 console.error("Error in AI move:", error);
                 // Fallback to ensure game doesn't get stuck
-                currentPlayer = PLAYER;
-                updateBoardUI();
+            currentPlayer = PLAYER;
+            updateBoardUI();
             }
         }
         
@@ -1162,28 +1162,28 @@
                 
                 if (piecesToConsider.length > 0) {
                     piecesToConsider.sort((a, b) => {
-                        const distA = getDistanceToTarget(a.row, a.col, AI);
-                        const distB = getDistanceToTarget(b.row, b.col, AI);
-                        return distA - distB;
-                    });
-                    
-                    // Try to move pieces closest to target first
+                    const distA = getDistanceToTarget(a.row, a.col, AI);
+                    const distB = getDistanceToTarget(b.row, b.col, AI);
+                    return distA - distB;
+                });
+                
+                // Try to move pieces closest to target first
                     for (const piece of piecesToConsider) {
-                        const moves = findMovesForPiece(piece.row, piece.col);
+                    const moves = findMovesForPiece(piece.row, piece.col);
+                    
+                    if (moves.length > 0) {
+                        // Find moves that get closer to target
+                        const currentDist = getDistanceToTarget(piece.row, piece.col, AI);
+                        const betterMoves = moves.filter(move => 
+                            getDistanceToTarget(move.row, move.col, AI) < currentDist
+                        );
                         
-                        if (moves.length > 0) {
-                            // Find moves that get closer to target
-                            const currentDist = getDistanceToTarget(piece.row, piece.col, AI);
-                            const betterMoves = moves.filter(move => 
-                                getDistanceToTarget(move.row, move.col, AI) < currentDist
-                            );
-                            
-                            if (betterMoves.length > 0) {
-                                const bestMove = betterMoves[Math.floor(Math.random() * betterMoves.length)];
-                                return {
-                                    from: { row: piece.row, col: piece.col },
-                                    to: bestMove
-                                };
+                        if (betterMoves.length > 0) {
+                            const bestMove = betterMoves[Math.floor(Math.random() * betterMoves.length)];
+                            return {
+                                from: { row: piece.row, col: piece.col },
+                                to: bestMove
+                            };
                             }
                         }
                     }
@@ -1524,10 +1524,10 @@
             // Distance to target area (avoid recalculating if not needed)
             // Only calculate the distance to target if it's not clearly a good jump move
             if (!isJumpMove || score < 20) {
-                const pieceDistToTarget = getDistanceToTarget(piece.row, piece.col, AI);
-                const moveDistToTarget = getDistanceToTarget(move.row, move.col, AI);
-                
-                // Prioritize moves that get closer to the target
+            const pieceDistToTarget = getDistanceToTarget(piece.row, piece.col, AI);
+            const moveDistToTarget = getDistanceToTarget(move.row, move.col, AI);
+            
+            // Prioritize moves that get closer to the target
                 const distanceImprovement = pieceDistToTarget - moveDistToTarget;
                 score += distanceImprovement * 10;
             }

@@ -33,6 +33,9 @@ let initialMouseY = 0;
 let aiPlayerColor = 'black'; // AI plays as black by default
 let aiThinking = false; // Track when AI is calculating its move
 
+// --- Drag Threshold ---
+const DRAG_THRESHOLD = 5; // Minimum pixels moved to initiate drag
+
 // Add modal elements
 const gameResultModal = document.getElementById('game-result-modal');
 const gameResultText = document.getElementById('game-result-text');
@@ -127,7 +130,7 @@ function executeAIMoveSimple(moveInfo) {
     };
     
     // Call movePiece directly
-    movePiece(moveInfo.startRow, moveInfo.startCol, moveInfo.toRow, moveInfo.toCol, moveInfo);
+    movePiece(moveInfo.startRow, moveInfo.startCol, moveInfo.toRow, moveInfo.toCol, move);
     
     // If AI turn is over, reset interaction
     if (currentPlayer !== aiPlayerColor) {
@@ -1262,8 +1265,13 @@ function handleTouchMove(event) {
     // Prevent scrolling
     event.preventDefault();
 
-    // Only create drag element on first actual move *if not already created*
-    if (!isDragging) {
+    // --- Check Drag Threshold ---
+    const deltaX = touch.clientX - initialTouchX;
+    const deltaY = touch.clientY - initialTouchY;
+    const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+
+    // Only create drag element on first actual move *if not already created AND threshold met*
+    if (!isDragging && distance > DRAG_THRESHOLD) {
         isDragging = true; // Set flag to indicate drag has started
 
         // --- Add dragging class to the original piece ---
@@ -1274,7 +1282,7 @@ function handleTouchMove(event) {
         // --- Clone Creation Code ---
         const pieceElement = draggedPieceData.element;
         const rect = pieceElement.getBoundingClientRect();
-        
+
         draggedPieceElement = pieceElement.cloneNode(true); // Clone the original piece
         draggedPieceElement.classList.remove('dragging'); // Remove from clone if already added
         draggedPieceElement.classList.add('dragging-piece'); // Add specific drag clone style
@@ -1286,7 +1294,7 @@ function handleTouchMove(event) {
         draggedPieceElement.style.opacity = '1'; // Ensure clone is fully visible
         draggedPieceElement.style.left = `${rect.left}px`; // Initial position
         draggedPieceElement.style.top = `${rect.top}px`;
-        
+
         // Add crown if king (efficiently, checks data)
         if (draggedPieceData.isKing) {
             const crown = document.createElement('div');
@@ -1303,31 +1311,32 @@ function handleTouchMove(event) {
             `;
             draggedPieceElement.appendChild(crown);
         }
-        
+
         // Slightly hide the original piece
         pieceElement.style.opacity = '0.3';
-        
+
         // Append clone to body
         document.body.appendChild(draggedPieceElement);
     }
 
-    if (!draggedPieceElement) return; // Should exist now if dragging
+    // Only update position if dragging has officially started
+    if (!isDragging || !draggedPieceElement) return;
 
     // Get board boundaries to keep piece within board visually
     const boardRect = boardElement.getBoundingClientRect();
-    
+
     // Calculate new position
     let newX = touch.clientX - initialPieceOffsetX;
     let newY = touch.clientY - initialPieceOffsetY;
-    
+
     // Get the element's dimensions
     const pieceWidth = draggedPieceElement.offsetWidth;
     const pieceHeight = draggedPieceElement.offsetHeight;
-    
+
     // Keep the piece within the board boundaries
     newX = Math.max(boardRect.left, Math.min(newX, boardRect.right - pieceWidth));
     newY = Math.max(boardRect.top, Math.min(newY, boardRect.bottom - pieceHeight));
-    
+
     // Update position using requestAnimationFrame for smoother rendering
     requestAnimationFrame(() => {
         if (draggedPieceElement) { // Check again in case it was removed
@@ -1620,39 +1629,88 @@ function handleMouseMove(event) {
     // Предотвращаем множественные обработки одного и того же события
     if (event.timeStamp === lastMouseMoveTimeStamp) return;
     lastMouseMoveTimeStamp = event.timeStamp;
-    
+
     // Очищаем таймер клика, если он есть - теперь мы точно перетаскиваем
     if (this.clickTimeout) {
         clearTimeout(this.clickTimeout);
         this.clickTimeout = null;
     }
-    
+
     // Вычисляем, насколько сместилась мышь от начального положения
     const deltaX = event.clientX - initialMouseX;
     const deltaY = event.clientY - initialMouseY;
-    
+    const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY); // Calculate distance
+
     // Если мы еще не начали перетаскивание, проверяем порог перемещения
-    if (!isMouseDragging) {
-        // Расстояние от начальной точки
-        const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
-        
-        // Если расстояние меньше порога, не начинаем перетаскивание
-        if (distance < 5) {
-            return;
-        }
-        
+    if (!isMouseDragging && distance > DRAG_THRESHOLD) { // Check threshold
         // Начинаем перетаскивание
         isMouseDragging = true;
-        startDragging(draggedPieceData.element, 
-                      draggedPieceData.startRow, 
-                      draggedPieceData.startCol, 
-                      draggedPieceData.isKing, 
-                      event.clientX, 
-                      event.clientY);
+
+        // --- Clone Creation Logic (moved from non-existent startDragging) ---
+        const originalPieceElement = draggedPieceData.element;
+        if (!originalPieceElement) {
+            console.error("Missing original piece element for drag start!");
+            cleanupDragOperation(false);
+            return;
+        }
+
+        // Add dragging class to original piece
+        originalPieceElement.classList.add('dragging');
+
+        // Clone Creation
+        const rect = originalPieceElement.getBoundingClientRect();
+        draggedPieceElement = originalPieceElement.cloneNode(true);
+        draggedPieceElement.classList.remove('dragging');
+        draggedPieceElement.classList.add('dragging-piece');
+        draggedPieceElement.style.width = `${rect.width}px`;
+        draggedPieceElement.style.height = `${rect.height}px`;
+        draggedPieceElement.style.position = 'fixed';
+        draggedPieceElement.style.pointerEvents = 'none';
+        draggedPieceElement.style.zIndex = '1000';
+        draggedPieceElement.style.opacity = '1';
+
+        // Position the clone correctly based on initial mouse down and offset
+        const initialCloneX = event.clientX - initialPieceOffsetX;
+        const initialCloneY = event.clientY - initialPieceOffsetY;
+        draggedPieceElement.style.left = `${initialCloneX}px`;
+        draggedPieceElement.style.top = `${initialCloneY}px`;
+
+
+        if (draggedPieceData.isKing) {
+            const crown = document.createElement('div');
+            crown.textContent = '👑';
+            crown.style.cssText = `
+                position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+                font-size: ${window.innerWidth <= 600 ? '18px' : '24px'}; z-index: 2;
+                text-shadow: 0 0 5px rgba(0, 0, 0, 0.5); filter: drop-shadow(0 0 4px gold);
+            `;
+            draggedPieceElement.appendChild(crown);
+        }
+
+        originalPieceElement.style.opacity = '0.3'; // Hide original
+        document.body.appendChild(draggedPieceElement);
     }
-    
-    // Перемещаем элемент вместе с курсором
-    updateDraggedPiecePosition(event.clientX, event.clientY);
+
+    // Only update position if dragging has officially started
+    if (!isMouseDragging || !draggedPieceElement) return;
+
+    // Перемещаем элемент вместе с курсором (updateDraggedPiecePosition logic)
+    const newX = event.clientX - initialPieceOffsetX;
+    const newY = event.clientY - initialPieceOffsetY;
+
+    // Keep within board bounds (optional but good practice)
+    const boardRect = boardElement.getBoundingClientRect();
+    const pieceWidth = draggedPieceElement.offsetWidth;
+    const pieceHeight = draggedPieceElement.offsetHeight;
+    const boundedX = Math.max(boardRect.left, Math.min(newX, boardRect.right - pieceWidth));
+    const boundedY = Math.max(boardRect.top, Math.min(newY, boardRect.bottom - pieceHeight));
+
+    requestAnimationFrame(() => {
+        if (draggedPieceElement) {
+            draggedPieceElement.style.left = `${boundedX}px`;
+            draggedPieceElement.style.top = `${boundedY}px`;
+        }
+    });
 }
 
 function handleMouseUp(event) {

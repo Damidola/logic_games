@@ -46,10 +46,12 @@
             display: grid;
             grid-template-columns: repeat(3, 1fr);
             gap: 10px;
-            margin: 25px auto; /* Збільшив відступ зверху/знизу, оскільки немає статусу */
+            /* Збільшив відступ зверху, залишив авто по боках */
+            margin: 40px auto 25px auto;
             max-width: 300px;
             width: 90%;
             aspect-ratio: 1 / 1;
+            position: relative; /* Добавлено для позиционирования линии */
         }
 
         /* Клітинки поля */
@@ -80,6 +82,41 @@
 
         .cell.o {
             color: #e74c3c; /* Яскраво-червоний для O */
+        }
+
+        /* Лінія для зачеркивания */
+        .win-line {
+            position: absolute;
+            height: 12px; /* Толще линия */
+            background-color: transparent;
+            z-index: 10; /* Увеличен z-index */
+            pointer-events: none;
+        }
+
+        .win-line::after {
+            content: '';
+            position: absolute;
+            height: 100%;
+            width: 100%;
+            left: 0;
+            top: 0;
+            border-radius: 6px;
+            opacity: 0;
+            transition: opacity 0.5s ease, box-shadow 0.5s ease;
+        }
+
+        .win-line.x::after {
+            background-color: #3498db;
+            box-shadow: 0 0 15px 3px rgba(52, 152, 219, 0.8);
+        }
+
+        .win-line.o::after {
+            background-color: #e74c3c;
+            box-shadow: 0 0 15px 3px rgba(231, 76, 60, 0.8);
+        }
+
+        .win-line.show::after {
+            opacity: 1;
         }
 
         /* Кнопки управління */
@@ -147,7 +184,7 @@
         #modal {
             display: none;
             position: fixed;
-            z-index: 1;
+            z-index: 20; /* Підняв вище лінії */
             left: 0;
             top: 0;
             width: 100%;
@@ -155,12 +192,16 @@
             overflow: auto;
             background-color: rgba(0, 0, 0, 0.7); /* Темніше затемнення */
             justify-content: center;
-            align-items: center;
+            /* Змінено вирівнювання на flex-start */
+            align-items: flex-start;
+            /* Додано відступ зверху */
+            padding-top: 5vh;
         }
 
         #modal-content {
             background-color: #34495e; /* Фон модального вікна */
-            margin: auto;
+            /* Змінено margin: auto на margin: 0 auto для горизонтального центрування */
+            margin: 0 auto;
             padding: 30px;
             border: 1px solid #7f8c8d; /* Сіра рамка */
             width: 80%;
@@ -195,7 +236,8 @@
             }
             #board {
                  max-width: 250px;
-                 margin: 20px auto; /* Зменшив відступ */
+                 /* Оновлено відступ для менших екранів */
+                 margin: 30px auto 20px auto;
             }
              button {
                 font-size: 0.9em;
@@ -226,6 +268,10 @@
              /* Можливо, знадобиться перенести кнопки на новий рядок */
              #controls {
                 gap: 8px;
+             }
+             #board {
+                 /* Ще менший відступ для дуже малих екранів */
+                 margin: 25px auto 15px auto;
              }
              .button-group {
                  gap: 4px; /* Ще менший відступ для дуже малих екранів */
@@ -296,9 +342,17 @@
             currentPlayer = playerSymbol;
             gameActive = true;
             history = [];
+            
+            // Сбрасываем сохраненную выигрышную комбинацию
+            winningCombination = null;
+            winningSymbol = null;
+            
+            // Удаляем все линии зачеркивания
+            document.querySelectorAll('.win-line').forEach(line => line.remove());
+            
             updateDifficultyButton(); // Оновити текст кнопки складності
             updateChangeSymbolButton(); // Оновити текст/клас кнопки символу
-            // statusElement.textContent видалено
+            
             undoBtn.disabled = true;
             modal.style.display = 'none';
 
@@ -311,11 +365,9 @@
                 boardElement.appendChild(cell);
             }
 
-             if (currentPlayer === robotSymbol) {
-                 // statusElement.textContent видалено
-                 // Просто робимо хід робота після невеликої паузи
-                 setTimeout(robotMove, 500);
-             }
+            if (currentPlayer === robotSymbol) {
+                setTimeout(robotMove, 500);
+            }
         }
 
         // --- Обробка кліку по клітинці ---
@@ -349,9 +401,10 @@
                 endGame(true);
             } else {
                 switchPlayer();
-                // updateStatus() видалено
             }
-            undoBtn.disabled = history.length < 2;
+            
+            // Обновляем состояние кнопки отмены после хода
+            undoBtn.disabled = history.length < 2 || !gameActive;
         }
 
         // --- Хід робота ---
@@ -371,12 +424,29 @@
             }
 
             if (moveIndex !== -1) {
-                 makeMove(moveIndex, robotSymbol);
+                // Сохраняем историю для возможности отмены
+                saveHistory();
+
+                // Обновляем состояние доски
+                boardState[moveIndex] = robotSymbol;
+                updateCell(moveIndex, robotSymbol);
+
+                // Проверяем, есть ли победа или ничья
+                if (checkWin(robotSymbol)) {
+                    endGame(false, robotSymbol);
+                } else if (boardState.every(cell => cell !== null)) {
+                    endGame(true);
+                } else {
+                    switchPlayer();
+                }
+
+                // Обновляем состояние кнопки отмены после хода
+                undoBtn.disabled = history.length < 2 || !gameActive;
             } else {
                 console.warn("Робот не зміг знайти хід!");
-                 if (boardState.every(cell => cell !== null) && !checkWin(playerSymbol) && !checkWin(robotSymbol)) {
+                if (boardState.every(cell => cell !== null) && !checkWin(playerSymbol) && !checkWin(robotSymbol)) {
                     endGame(true);
-                 }
+                }
             }
         }
 
@@ -435,22 +505,109 @@
 
         // --- Перевірка перемоги ---
         function checkWin(symbol) {
-            return WINNING_COMBINATIONS.some(combination => {
-                return combination.every(index => boardState[index] === symbol);
-            });
+            for (let i = 0; i < WINNING_COMBINATIONS.length; i++) {
+                const combination = WINNING_COMBINATIONS[i];
+                
+                // Проверяем все три ячейки в комбинации
+                if (boardState[combination[0]] === symbol && 
+                    boardState[combination[1]] === symbol && 
+                    boardState[combination[2]] === symbol) {
+                    
+                    // Сохраняем выигрышную комбинацию для возможного перерисовывания
+                    winningCombination = combination;
+                    winningSymbol = symbol;
+                    
+                    // Отображаем линию если игра активна
+                    // (не рисуем во время предсказательных проверок AI)
+                    if (gameActive) {
+                        drawWinLine(combination, symbol);
+                    }
+                    
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        // --- Функция для рисования линии зачеркивания ---
+        function drawWinLine(combination, symbol) {
+            // Удаляем существующие линии
+            document.querySelectorAll('.win-line').forEach(line => line.remove());
+            
+            // Проверяем есть ли доска
+            if (!boardElement) {
+                console.error('Не найден элемент доски');
+                return;
+            }
+            
+            // Получаем ячейки по индексам
+            const cell0 = boardElement.children[combination[0]];
+            const cell2 = boardElement.children[combination[2]]; // Нужны только первая и последняя
+            
+            // Проверяем наличие ячеек
+            if (!cell0 || !cell2) {
+                console.error('Не удалось найти крайние ячейки для линии');
+                return;
+            }
+            
+            // Создаем линию
+            const line = document.createElement('div');
+            line.classList.add('win-line', symbol.toLowerCase());
+            
+            // Получаем координаты центров ПЕРВОЙ и ПОСЛЕДНЕЙ ячеек относительно ДОСКИ
+            const boardRect = boardElement.getBoundingClientRect();
+            const rect0 = cell0.getBoundingClientRect();
+            const rect2 = cell2.getBoundingClientRect();
+            
+            // Центр первой ячейки (относительно доски)
+            const startX = (rect0.left + rect0.width / 2) - boardRect.left;
+            const startY = (rect0.top + rect0.height / 2) - boardRect.top;
+            
+            // Центр последней ячейки (относительно доски)
+            const endX = (rect2.left + rect2.width / 2) - boardRect.left;
+            const endY = (rect2.top + rect2.height / 2) - boardRect.top;
+            
+            // Рассчитываем длину линии (дистанция между центрами)
+            const length = Math.sqrt(Math.pow(endX - startX, 2) + Math.pow(endY - startY, 2));
+            
+            // Рассчитываем угол наклона линии
+            const angle = Math.atan2(endY - startY, endX - startX) * (180 / Math.PI);
+            
+            // Устанавливаем стили линии
+            line.style.width = `${length}px`; 
+            line.style.left = `${startX}px`; // Позиционируем по центру первой ячейки
+            line.style.top = `${startY}px`; // Позиционируем по центру первой ячейки
+            line.style.transformOrigin = '0 50%'; // Вращаем относительно левого центра
+            line.style.transform = `rotate(${angle}deg) translateY(-50%)`; // Вращаем и центрируем по вертикали
+            
+            // Добавляем линию к доске
+            boardElement.appendChild(line);
+            
+            // Показываем линию с небольшой задержкой для анимации
+            setTimeout(() => {
+                line.classList.add('show');
+            }, 50);
         }
 
         // --- Завершення гри ---
         function endGame(draw, winnerSymbol = null) {
             gameActive = false;
             let message = '';
+            
+            // Отключаем кнопку отмены хода при завершении игры
+            undoBtn.disabled = true;
+            
             if (draw) {
                 message = "Нічия!";
+                // При ничьей показываем модальное окно сразу
+                showModal(message);
             } else {
                 message = winnerSymbol === playerSymbol ? "Ви виграли! 🎉" : "Робот виграв! 🤖";
+                // Задержка 1 секунда перед показом модального окна при любой победе
+                setTimeout(() => {
+                    showModal(message);
+                }, 1000);
             }
-            showModal(message);
-            undoBtn.disabled = true;
         }
 
         // --- Переключення гравця ---
@@ -474,14 +631,11 @@
             }
         }
 
-        // updateStatus() видалено
-
         // --- Показ/закриття модального вікна ---
         function showModal(message) {
             modalText.textContent = message;
             modal.style.display = 'flex';
         }
-        // closeModal() більше не потрібна окремо, кнопка тепер перезапускає гру
 
         // --- Історія та відміна ходу ---
         function saveHistory() {
@@ -491,11 +645,11 @@
             });
         }
         function undoMove() {
-             // Забороняємо відміну, якщо модальне вікно відкрито
-             if (modal.style.display === 'flex') {
-                 console.log("Не можна відмінити, коли відкрито вікно результату.");
-                 return;
-             }
+            // Забороняємо відміну, якщо модальне вікно відкрито
+            if (modal.style.display === 'flex') {
+                console.log("Не можна відмінити, коли відкрито вікно результату.");
+                return;
+            }
             if (history.length < 2) return;
 
             history.pop();
@@ -506,13 +660,20 @@
                 currentPlayer = previousState.player;
                 gameActive = true; // Дуже важливо відновити активність гри
 
+                // Сбрасываем сохраненную выигрышную комбинацию
+                winningCombination = null;
+                winningSymbol = null;
+
+                // Удаляем все линии зачеркивания
+                document.querySelectorAll('.win-line').forEach(line => line.remove());
+
                 for (let i = 0; i < 9; i++) {
                     updateCell(i, boardState[i]); // Використовуємо updateCell для оновлення
                 }
-                // updateStatus() видалено
             }
+            
             // Оновлюємо стан кнопки після відміни
-             undoBtn.disabled = history.length < 2;
+            undoBtn.disabled = history.length < 2;
         }
 
 
@@ -566,6 +727,24 @@
                  // При кліку поза модальним вікном просто закриваємо його, не перезапускаючи гру
                  modal.style.display = 'none';
             }
+        });
+
+        // Обработчик изменения размера окна для перерисовки линии
+        let winningCombination = null;
+        let winningSymbol = null;
+        let resizeTimeout = null;
+
+        window.addEventListener('resize', () => {
+            // Используем debounce для производительности
+            clearTimeout(resizeTimeout);
+            resizeTimeout = setTimeout(() => {
+                if (winningCombination && winningSymbol) {
+                    // Удаляем старые линии
+                    document.querySelectorAll('.win-line').forEach(line => line.remove());
+                    // Перерисовываем линию с новыми размерами
+                    drawWinLine(winningCombination, winningSymbol);
+                }
+            }, 100);
         });
 
         // --- Перший запуск гри ---

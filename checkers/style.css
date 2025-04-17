@@ -1,9 +1,9 @@
 html, body {
-    overflow: hidden; /* Заборона прокрутки */
-    overscroll-behavior: none; /* Заборона "гумового" ефекту */
-    height: 100%; /* Переконатись, що body займає всю висоту */
-    width: 100%;  /* Переконатись, що body займає всю ширину */
-    position: fixed; /* Додатково для деяких браузерів */
+    overflow: hidden; /* Prevent scrolling */
+    overscroll-behavior: none; /* Prevent "rubber" effect */
+    height: 100%; 
+    width: 100%;
+    position: fixed; /* For some browsers */
     touch-action: none; /* Disable browser touch actions globally */
 }
 
@@ -15,60 +15,73 @@ body {
     justify-content: center;
     min-height: 100vh;
     margin: 0;
-    padding: 20px;
+    padding: 0;
     background: linear-gradient(135deg, #2c3e50, #3498db);
     color: #fff;
 }
 
-.game-container {
-    background-color: rgba(255, 255, 255, 0.1);
-    border-radius: 20px;
-    padding: 30px;
-    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
-    backdrop-filter: blur(10px);
-    max-width: 95%;
-}
-
-.game-header {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    margin-bottom: 20px;
-}
-
 h1 {
-    font-size: 3rem;
-    margin: 0 0 20px 0;
+    font-size: 2.5rem;
+    margin: 15px 0;
     text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
     letter-spacing: 2px;
+    text-align: center;
+}
+
+#checkerboard {
+    width: min(80vw, 560px); /* Responsive width, max 560px */
+    height: min(80vw, 560px); /* Same as width to keep square */
+    display: grid;
+    grid-template-columns: repeat(8, 1fr);
+    grid-template-rows: repeat(8, 1fr);
+    border: 8px solid #333;
+    border-radius: 8px;
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+    margin: 10px auto;
 }
 
 .game-controls {
     display: flex;
+    flex-wrap: wrap;
     gap: 10px;
     align-items: center;
     justify-content: center;
-    width: 100%; /* Take full width of footer */
-    flex-wrap: nowrap; /* Prevent wrapping to new line */
+    margin: 15px auto;
+    padding: 15px;
+    background-color: rgba(0, 0, 0, 0.2);
+    border-radius: 10px;
+    width: min(80vw, 560px); /* Match the board width */
 }
 
 button {
-    background: linear-gradient(to bottom, #3498db, #2980b9);
+    background: linear-gradient(to bottom, #9b59b6, #8e44ad);
     color: white;
     border: none;
-    padding: 8px 15px;
+    padding: 10px 20px;
     border-radius: 50px;
-    font-size: 14px;
+    font-size: 1rem;
     cursor: pointer;
     transition: all 0.3s ease;
     box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-    min-width: 90px;
+    white-space: nowrap;
+}
+
+/* Стиль для кнопки с иконкой */
+.icon-btn {
+    width: 40px;
+    height: 40px;
+    min-width: 40px !important;
+    padding: 0;
+    font-size: 1.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
 button:hover {
     transform: translateY(-2px);
     box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
-    background: linear-gradient(to bottom, #2980b9, #2c3e50);
+    background: linear-gradient(to bottom, #8e44ad, #6c3483);
 }
 
 button:active {
@@ -78,36 +91,6 @@ button:active {
 button:disabled {
     opacity: 0.5;
     cursor: not-allowed;
-}
-
-.turn-indicator {
-    font-size: 1.2rem;
-    margin: 0 0 20px 0;
-    padding: 8px 20px;
-    background-color: rgba(0, 0, 0, 0.2);
-    border-radius: 50px;
-    box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.1);
-    transition: all 0.3s ease;
-    min-width: 100px;
-    text-align: center;
-}
-
-.turn-change {
-    transform: scale(1.1);
-    background-color: rgba(52, 152, 219, 0.3);
-}
-
-#checkerboard {
-    width: 560px; /* Increased size */
-    height: 560px;
-    display: grid;
-    grid-template-columns: repeat(8, 1fr);
-    grid-template-rows: repeat(8, 1fr);
-    border: 8px solid #333;
-    border-radius: 8px;
-    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
-    overflow: hidden;
-    background-color: #111;
 }
 
 .square {
@@ -120,11 +103,11 @@ button:disabled {
 }
 
 .light {
-    background-color: #f0d9b5;
+    background-color: var(--light-square);
 }
 
 .dark {
-    background-color: #b58863;
+    background-color: var(--dark-square);
 }
 
 /* Piece styles with 3D effect */
@@ -132,26 +115,26 @@ button:disabled {
     width: 80%;
     height: 80%;
     border-radius: 50%;
-    cursor: grab;
+    cursor: pointer;
     box-sizing: border-box;
     z-index: 1;
-    transition: transform 0.1s ease; /* Reduced from 0.2s */
+    transition: transform 0.1s ease;
     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.5);
 }
 
 .white-piece {
-    background: radial-gradient(circle at 30% 30%, #ffffff, #d0d0d0);
-    border: 2px solid #999;
+    background: var(--white-piece-bg);
+    border: 2px solid var(--white-piece-border);
 }
 
 .black-piece {
-    background: radial-gradient(circle at 30% 30%, #444, #111);
-    border: 2px solid #000;
+    background: var(--black-piece-bg);
+    border: 2px solid var(--black-piece-border);
 }
 
 .piece:hover {
     transform: scale(1.05);
-    cursor: grab;
+    cursor: pointer;
 }
 
 .king::after {
@@ -167,8 +150,8 @@ button:disabled {
 }
 
 .selected {
-    border: 3px solid #ffd700;
-    box-shadow: 0 0 15px #ffd700, 0 0 30px rgba(255, 215, 0, 0.5);
+    border: 3px solid var(--selected-border);
+    box-shadow: var(--selected-shadow);
     transform: scale(1.1);
 }
 
@@ -181,7 +164,7 @@ button:disabled {
     position: absolute;
     width: 40%;
     height: 40%;
-    background-color: rgba(46, 204, 113, 0.6);
+    background-color: var(--valid-move);
     border-radius: 50%;
     animation: pulse 1.5s infinite;
 }
@@ -195,14 +178,14 @@ button:disabled {
     position: absolute;
     width: 40%;
     height: 40%;
-    background-color: rgba(231, 76, 60, 0.6);
+    background-color: var(--valid-capture);
     border-radius: 50%;
     animation: pulse 1.5s infinite;
 }
 
 .mandatory-capture-piece {
-    border: 4px solid #e74c3c !important;
-    box-shadow: 0 0 15px #e74c3c, 0 0 30px rgba(231, 76, 60, 0.5);
+    border: 4px solid var(--mandatory-piece) !important;
+    box-shadow: 0 0 15px var(--mandatory-piece), 0 0 30px rgba(231, 76, 60, 0.5);
     animation: pulse 1.5s infinite;
 }
 
@@ -227,91 +210,18 @@ button:disabled {
     z-index: 1000 !important;
     pointer-events: none !important;
     transform-origin: center center;
-    /* Ensure smooth transition when created, but instant movement when dragging */
     transition: none;
-    /* Make dragged piece slightly larger */
     transform: scale(1.2);
-    /* Shadow effect to give "lifted" appearance */
     box-shadow: 0 8px 16px rgba(0, 0, 0, 0.5), 0 4px 8px rgba(0, 0, 0, 0.3);
-    /* Additional GPU acceleration for smoother dragging */
     will-change: left, top;
     touch-action: none;
-    /* Make the dragged piece more obvious */
     filter: brightness(1.2);
 }
 
 /* Style to hide the original piece in the square while dragging */
 .piece-hidden {
     opacity: 0.3;
-    /* Optionally remove hover effect */
     pointer-events: none; 
-}
-
-/* Responsive design for smaller screens */
-@media (max-width: 600px) {
-    #checkerboard {
-        width: 320px;
-        height: 320px;
-        border-width: 5px;
-        margin: 0 auto;
-    }
-    
-    .piece {
-        width: 85%; /* Make pieces larger to be easier to grab */
-        height: 85%;
-    }
-    
-    .king::after {
-        font-size: 18px;
-    }
-    
-    h1 {
-        font-size: 2rem;
-    }
-    
-    .game-footer {
-        margin-top: 15px;
-    }
-    
-    .game-controls {
-        flex-wrap: wrap;
-    }
-    
-    button {
-        padding: 12px 15px; /* Larger touch targets */
-        font-size: 16px;
-        min-width: 120px;
-        margin: 5px;
-    }
-    
-    .dragging-piece {
-        transform: scale(1.5); /* Even larger on mobile for better visibility */
-    }
-    
-    /* Ensure valid move indicators are more visible on mobile */
-    .valid-move::after,
-    .valid-capture::after {
-        width: 50%;
-        height: 50%;
-    }
-}
-
-.game-footer {
-    margin-top: 20px;
-    text-align: center;
-    padding: 15px;
-    background-color: rgba(0, 0, 0, 0.2);
-    border-radius: 10px;
-    width: calc(100% - 30px); /* Adjusting width to match container */
-    max-width: 560px; /* Match the checkerboard width */
-    display: flex;
-    justify-content: center;
-}
-
-.game-info {
-    font-size: 1.1rem;
-    margin: 0;
-    color: rgba(255, 255, 255, 0.9);
 }
 
 /* Game Result Modal Styles */
@@ -344,7 +254,7 @@ button:disabled {
 }
 
 #modal-new-game-btn {
-    background-color: #4CAF50;
+    background-color: #9b59b6;
     color: white;
     border: none;
     padding: 0.8rem 1.5rem;
@@ -355,7 +265,7 @@ button:disabled {
 }
 
 #modal-new-game-btn:hover {
-    background-color: #45a049;
+    background-color: #8e44ad;
 }
 
 /* Make modal visible when active */
@@ -367,105 +277,113 @@ button:disabled {
 .theme-selector {
     position: relative;
     display: inline-block;
-    margin-left: 10px;
 }
 
 #theme-btn {
-    background: linear-gradient(to bottom, #6c5ce7, #5e52bd);
+    position: relative;
+    width: 40px;
+    height: 40px;
+    min-width: 40px !important;
+    border-radius: 50%;
+    border: none;
+    background: linear-gradient(145deg, #9b59b6, #8e44ad);
+    cursor: pointer;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.15);
+    transition: all 0.3s ease;
+    z-index: 10;
     display: flex;
-    align-items: center;
     justify-content: center;
+    align-items: center;
 }
 
-#theme-btn::after {
+#theme-btn::before {
     content: "🎨";
-    margin-left: 5px;
-    font-size: 16px;
+    font-size: 20px;
 }
 
 #theme-btn:hover {
-    background: linear-gradient(to bottom, #5e52bd, #4c44a6);
+    transform: translateY(-2px);
+    box-shadow: 0 6px 15px rgba(0, 0, 0, 0.2);
 }
 
 .theme-dropdown {
-    display: none;
     position: absolute;
-    bottom: 110%;
-    right: 0;
-    background: rgba(0, 0, 0, 0.85);
-    border-radius: 8px;
-    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.5);
+    bottom: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    padding: 0;
+    display: none;
     z-index: 100;
-    min-width: 160px;
-    max-height: 0;
-    overflow: hidden;
-    transition: max-height 0.3s ease-out;
-    backdrop-filter: blur(10px);
-    border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .theme-dropdown.active {
     display: block;
-    max-height: 300px;
 }
 
+/* Simple vertical column of theme options */
 .theme-option {
-    padding: 12px 15px;
+    position: absolute;
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
     cursor: pointer;
-    color: white;
-    transition: all 0.2s;
-    font-size: 14px;
-    text-align: left;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    border: 2px solid rgba(255, 255, 255, 0.8);
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
+    transform: scale(0);
+    transition: transform 0.2s ease-out;
+    left: 50%;
+    margin-left: -15px; /* Half of width */
 }
 
-.theme-option:last-child {
-    border-bottom: none;
+.theme-dropdown.active .theme-option {
+    transform: scale(1);
+}
+
+/* Position theme options in a strict vertical line above the button */
+.theme-dropdown.active .theme-option:nth-child(1) {
+    bottom: 5px;
+    transition-delay: 0s;
+}
+
+.theme-dropdown.active .theme-option:nth-child(2) {
+    bottom: 45px;
+    transition-delay: 0.05s;
+}
+
+.theme-dropdown.active .theme-option:nth-child(3) {
+    bottom: 85px;
+    transition-delay: 0.1s;
+}
+
+.theme-dropdown.active .theme-option:nth-child(4) {
+    bottom: 125px;
+    transition-delay: 0.15s;
+}
+
+.theme-dropdown.active .theme-option:nth-child(5) {
+    bottom: 165px;
+    transition-delay: 0.2s;
 }
 
 .theme-option:hover {
-    background: rgba(255, 255, 255, 0.1);
-    transform: translateX(5px);
+    transform: scale(1.2) !important;
+    z-index: 101;
+    border-color: white;
+    box-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
 }
 
 .theme-option.active {
-    font-weight: bold;
-    background: rgba(255, 255, 255, 0.15);
+    border-color: #ffffff;
+    box-shadow: 0 0 8px rgba(255, 255, 255, 0.7);
 }
 
-.theme-option::before {
-    content: "";
-    display: inline-block;
-    width: 12px;
-    height: 12px;
-    border-radius: 50%;
-    margin-right: 8px;
-    vertical-align: middle;
-}
-
-.theme-option[data-theme="default"]::before {
-    background: linear-gradient(135deg, #b58863, #f0d9b5);
-}
-
-.theme-option[data-theme="dark"]::before {
-    background: linear-gradient(135deg, #2c2c2c, #5c5c5c);
-}
-
-.theme-option[data-theme="wooden"]::before {
-    background: linear-gradient(135deg, #8B4513, #DEB887);
-}
-
-.theme-option[data-theme="blue"]::before {
-    background: linear-gradient(135deg, #1e3a8a, #93c5fd);
-}
-
-.theme-option[data-theme="neon"]::before {
-    background: linear-gradient(135deg, #170638, #331f63);
-}
+.theme-option[data-theme="default"] { background: linear-gradient(135deg, #f0d9b5, #b58863); }
+.theme-option[data-theme="dark"]    { background: linear-gradient(135deg, #555, #222); }
+.theme-option[data-theme="neon"]    { background: linear-gradient(135deg, #0ff, #f0f); }
+.theme-option[data-theme="green"]   { background: linear-gradient(135deg, #4CAF50, #2E7D32); }
+.theme-option[data-theme="yellow"]  { background: linear-gradient(135deg, #FFC107, #FFA000); }
 
 /* Theme Definitions */
-
-/* Default Theme (already defined in main styles) */
 :root {
     --dark-square: #b58863;
     --light-square: #f0d9b5;
@@ -481,6 +399,151 @@ button:disabled {
     --selected-border: #ffd700;
     --selected-shadow: 0 0 15px #ffd700, 0 0 30px rgba(255, 215, 0, 0.5);
 }
+
+/* Responsive design for smaller screens */
+@media (max-width: 768px) {
+    h1 {
+        font-size: 2rem;
+        margin: 10px 0;
+    }
+    
+    #checkerboard {
+        width: min(90vw, 400px);
+        height: min(90vw, 400px);
+        border-width: 5px;
+    }
+    
+    .piece {
+        width: 85%; /* Make pieces larger to be easier to grab */
+        height: 85%;
+    }
+    
+    .king::after {
+        font-size: 18px;
+    }
+
+    .game-controls {
+        width: min(90vw, 400px);
+        padding: 10px;
+    }
+    
+    button {
+        padding: 8px 15px;
+        font-size: 0.9rem;
+        min-width: auto;
+    }
+    
+    .dragging-piece {
+        transform: scale(1.3);
+    }
+    
+    /* Adjust spacing for mobile */
+    .theme-dropdown.active .theme-option:nth-child(1) { bottom: 10px; }
+    .theme-dropdown.active .theme-option:nth-child(2) { bottom: 55px; }
+    .theme-dropdown.active .theme-option:nth-child(3) { bottom: 100px; }
+    .theme-dropdown.active .theme-option:nth-child(4) { bottom: 145px; }
+    .theme-dropdown.active .theme-option:nth-child(5) { bottom: 190px; }
+}
+
+/* For very small screens */
+@media (max-width: 400px) {
+    h1 {
+        font-size: 1.7rem;
+    }
+    
+    #checkerboard {
+        width: 95vw;
+        height: 95vw;
+        border-width: 4px;
+    }
+    
+    .game-controls {
+        width: 95vw;
+        padding: 8px;
+        gap: 5px;
+    }
+    
+    button {
+        padding: 8px 12px;
+        font-size: 0.85rem;
+    }
+    
+    .modal-content h2 {
+        font-size: 1.5rem;
+    }
+    
+    #modal-new-game-btn {
+        padding: 0.6rem 1.2rem;
+        font-size: 1rem;
+    }
+}
+
+/* Style for the piece currently being dragged */
+.piece.dragging {
+  transform: scale(1.1);
+  box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+  cursor: grabbing;
+}
+
+/* For landscape orientation on mobile */
+@media (max-height: 500px) and (orientation: landscape) {
+    body {
+        padding: 5px;
+    }
+    
+    h1 {
+        font-size: 1.5rem;
+        margin: 5px 0;
+    }
+    
+    #checkerboard {
+        width: min(80vh, 400px);
+        height: min(80vh, 400px);
+    }
+    
+    .game-controls {
+        width: min(80vh, 400px);
+        margin: 5px auto;
+    }
+}
+
+/* Style for the turn indicator */
+.turn-indicator {
+    font-size: 1.2rem;
+    margin: 0 0 20px 0;
+    padding: 8px 20px;
+    background-color: rgba(0, 0, 0, 0.2);
+    border-radius: 50px;
+    box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.1);
+    transition: all 0.3s ease;
+    min-width: 100px;
+    text-align: center;
+}
+
+.turn-change {
+    transform: scale(1.1);
+    background-color: rgba(52, 152, 219, 0.3);
+}
+
+.game-footer {
+    margin-top: 20px;
+    text-align: center;
+    padding: 15px;
+    background-color: rgba(0, 0, 0, 0.2);
+    border-radius: 10px;
+    width: calc(100% - 30px); /* Adjusting width to match container */
+    max-width: 560px; /* Match the checkerboard width */
+    display: flex;
+    justify-content: center;
+}
+
+.game-info {
+    font-size: 1.1rem;
+    margin: 0;
+    color: rgba(255, 255, 255, 0.9);
+}
+
+/* Theme Definitions */
 
 /* Dark Theme - Black pieces changed to Red */
 body.theme-dark {
@@ -500,40 +563,6 @@ body.theme-dark {
     --selected-shadow: 0 0 15px #42a5f5, 0 0 30px rgba(66, 165, 245, 0.5);
 }
 
-/* Wooden Theme - Refined colors */
-body.theme-wooden {
-    --dark-square: #a0522d; /* Sienna - slightly darker brown */
-    --light-square: #f5deb3; /* Wheat - lighter wood */
-    --white-piece-bg: radial-gradient(circle at 30% 30%, #fff8dc, #d2b48c); /* Cornsilk to Tan */
-    --white-piece-border: #8b4513; /* SaddleBrown */
-    --black-piece-bg: radial-gradient(circle at 30% 30%, #5d4037, #3e2723); /* Dark brown */
-    --black-piece-border: #3e2723; /* Darkest brown */
-    --board-border: #6d4c41; /* Brown 700 */
-    --page-bg: linear-gradient(135deg, #4e342e, #8d6e63); /* Dark brown to lighter brown */
-    --valid-move: rgba(100, 181, 246, 0.7); /* Light blue for valid */
-    --valid-capture: rgba(255, 183, 77, 0.7); /* Amber for capture */
-    --mandatory-piece: #ff7043; /* Deep Orange */
-    --selected-border: #ffee58; /* Yellow */
-    --selected-shadow: 0 0 15px #ffee58, 0 0 30px rgba(255, 238, 88, 0.5);
-}
-
-/* Blue Theme - Enhanced contrast */
-body.theme-blue {
-    --dark-square: #0d47a1; /* Darker blue */
-    --light-square: #bbdefb; /* Lighter blue */
-    --white-piece-bg: radial-gradient(circle at 30% 30%, #e3f2fd, #90caf9); /* Very light blue to light blue */
-    --white-piece-border: #42a5f5; /* Medium blue border */
-    --black-piece-bg: radial-gradient(circle at 30% 30%, #1565c0, #0d47a1); /* Medium blue to dark blue */
-    --black-piece-border: #0d47a1;
-    --board-border: #1976d2; /* Slightly lighter border */
-    --page-bg: linear-gradient(135deg, #0a2a4d, #1e88e5); /* Dark blue to medium blue */
-    --valid-move: rgba(129, 212, 250, 0.7); /* Cyan */
-    --valid-capture: rgba(255, 209, 128, 0.7); /* Light Orange */
-    --mandatory-piece: #ef5350; /* Red for mandatory */
-    --selected-border: #80d8ff; /* Light Cyan selection */
-    --selected-shadow: 0 0 15px #80d8ff, 0 0 30px rgba(128, 216, 255, 0.5);
-}
-
 /* Neon Theme - More vibrant, changed dark pieces */
 body.theme-neon {
     --dark-square: #2a0a4a; /* Dark purple */
@@ -550,6 +579,40 @@ body.theme-neon {
     --mandatory-piece: #ff1493; /* Deep Pink */
     --selected-border: #00e5ff; /* Electric Blue */
     --selected-shadow: 0 0 15px #00e5ff, 0 0 30px rgba(0, 229, 255, 0.5);
+}
+
+/* Green Theme - Green and white checkered pattern */
+body.theme-green {
+    --dark-square: #4CAF50; /* Green */
+    --light-square: #ffffff; /* White */
+    --white-piece-bg: radial-gradient(circle at 30% 30%, #0c58bd, #05bcf3); /* Pure white pieces */
+    --white-piece-border: #0c09d2; /* Light gray border */
+    --black-piece-bg: radial-gradient(circle at 30% 30%, #424242, #212121); /* Dark gray to almost black */
+    --black-piece-border: #000;
+    --board-border: #2E7D32; /* Darker green border */
+    --page-bg: linear-gradient(135deg, #2E7D32, #81C784); /* Dark green to light green */
+    --valid-move: rgba(255, 193, 7, 0.7); /* Amber for valid moves */
+    --valid-capture: rgba(255, 87, 34, 0.7); /* Deep orange for captures */
+    --mandatory-piece: #f44336; /* Red */
+    --selected-border: #FFC107; /* Amber selection */
+    --selected-shadow: 0 0 15px #FFC107, 0 0 30px rgba(255, 193, 7, 0.5);
+}
+
+/* Yellow Theme - With yellow pieces */
+body.theme-yellow {
+    --dark-square: #795548; /* Brown */
+    --light-square: #FFECB3; /* Light amber/yellow */
+    --white-piece-bg: radial-gradient(circle at 30% 30%, #FFC107, #FFA000); /* Yellow pieces */
+    --white-piece-border: #FF8F00; /* Darker yellow/amber border */
+    --black-piece-bg: radial-gradient(circle at 30% 30%, #3E2723, #291916); /* Very dark brown */
+    --black-piece-border: #1B0000; /* Almost black */
+    --board-border: #5D4037; /* Brown border */
+    --page-bg: linear-gradient(135deg, #795548, #BCAAA4); /* Brown to light brown */
+    --valid-move: rgba(76, 175, 80, 0.7); /* Green for valid moves */
+    --valid-capture: rgba(233, 30, 99, 0.7); /* Pink for captures */
+    --mandatory-piece: #E91E63; /* Pink */
+    --selected-border: #76FF03; /* Light green selection */
+    --selected-shadow: 0 0 15px #76FF03, 0 0 30px rgba(118, 255, 3, 0.5);
 }
 
 /* Apply themes to elements */
@@ -600,7 +663,7 @@ body {
 /* Adjust for mobile */
 @media (max-width: 600px) {
     .theme-selector {
-        margin-left: 10px; /* Keep margin even on mobile */
+        margin-left: 10px;
     }
     
     button {
@@ -609,4 +672,38 @@ body {
         padding: 6px 10px;
         font-size: 13px;
     }
-} 
+    
+    #theme-btn {
+        width: 45px;
+        min-width: 45px !important;
+        padding: 10px 0;
+    }
+    
+    /* Make circles slightly bigger on mobile for easier tapping */
+    .theme-option {
+        width: 36px;
+        height: 36px;
+        margin-left: -18px; /* Half of width */
+    }
+    
+    /* Adjust spacing for mobile */
+    .theme-dropdown.active .theme-option:nth-child(1) { bottom: 10px; }
+    .theme-dropdown.active .theme-option:nth-child(2) { bottom: 51px; }
+    .theme-dropdown.active .theme-option:nth-child(3) { bottom: 92px; }
+    .theme-dropdown.active .theme-option:nth-child(4) { bottom: 133px; }
+    .theme-dropdown.active .theme-option:nth-child(5) { bottom: 174px; }
+    .theme-dropdown.active .theme-option:nth-child(6) { bottom: 215px; }
+    .theme-dropdown.active .theme-option:nth-child(7) { bottom: 256px; }
+}
+
+/* Style for the piece currently being dragged */
+.piece.dragging {
+  /* opacity: 0.7; /* Optional: make it slightly transparent */
+  transform: scale(1.1); /* Slightly enlarge the piece */
+  /* transition: transform 0.1s ease-out; */ /* Optional: smooth scaling */
+  box-shadow: 0 5px 15px rgba(0,0,0,0.3); /* Add shadow for depth */
+  cursor: grabbing; /* Indicate active drag */
+}
+
+/* Prevent page scroll while dragging an element */
+/* ... existing code ... */ 

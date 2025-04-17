@@ -18,6 +18,7 @@ document.addEventListener('DOMContentLoaded', () => {
             this.moveHistory = [];
             this.winningCells = [];
             this.playerTurn = true; // Flag to track if it's player's turn
+            this.isProcessingMove = false; // Flag to prevent rapid clicks
             
             // Initialize theme
             this.initializeTheme();
@@ -64,6 +65,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // Initialize game board
         initializeBoard() {
             this.boardElement.innerHTML = '';
+            this.boardElement.classList.remove('ai-turn'); // Ensure clean state
             
             for (let col = 0; col < this.COLS; col++) {
                 const column = document.createElement('div');
@@ -79,7 +81,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 
                 column.addEventListener('click', () => {
-                    if (!this.gameOver && this.playerTurn) { // Only allow click if it's player's turn
+                    // Stricter check: Game not over, it's player's turn, and no move is currently processing
+                    if (!this.gameOver && this.playerTurn && !this.isProcessingMove) {
                         const col = parseInt(column.dataset.col);
                         this.makeMove(col);
                     }
@@ -218,44 +221,58 @@ document.addEventListener('DOMContentLoaded', () => {
         
         // Make player move
         makeMove(col) {
-            if (!this.isValidMove(col) || this.gameOver || !this.playerTurn) return false;
-            
-            // Lock player input until AI moves
-            this.playerTurn = false;
-            
+             // Double-check conditions and check validity
+            if (this.gameOver || !this.playerTurn || this.isProcessingMove || !this.isValidMove(col)) {
+                return false;
+            }
+
+            this.isProcessingMove = true; // Lock input immediately
+            this.playerTurn = false; // Player's turn is over
+
             const row = this.getFirstEmptyRow(col);
+             // This check should technically be redundant due to isValidMove, but safety first
+            if (row === -1) {
+                this.playerTurn = true; // Re-enable player turn if move failed
+                this.isProcessingMove = false; // Unlock processing
+                return false;
+            }
+
             this.board[row][col] = this.PLAYER;
             this.moveHistory.push({row, col, player: this.PLAYER});
-            
-            this.updateBoard();
-            
+            this.updateBoard(); // Update board visually
+
             // Check if player won
             if (this.checkWin(row, col, this.PLAYER)) {
                 this.winnerMessage.textContent = 'Ви перемогли!';
                 this.gameOver = true;
                 this.gameOverElement.classList.add('active');
+                 // No need to unlock processing here, game is over
                 return true;
             }
-            
+
             // Check for draw
             if (this.isBoardFull()) {
                 this.winnerMessage.textContent = 'Нічия!';
                 this.gameOver = true;
                 this.gameOverElement.classList.add('active');
+                 // No need to unlock processing here, game is over
                 return true;
             }
-            
-            // AI move
+
+             // If game continues, prepare for AI move
+            this.boardElement.classList.add('ai-turn'); // Add class to indicate AI's turn visually/disable clicks via CSS
             setTimeout(() => {
                 this.makeAIMove();
-            }, 300);
-            
+            }, 500); // AI moves after a short delay
+
+             // Note: isProcessingMove remains true until AI finishes
             return true;
         }
         
-        // Check if board is full (draw)
+        // Check if board is full (draw condition)
         isBoardFull() {
-            return this.board.every(row => row.every(cell => cell !== this.EMPTY));
+            // Check if the top row (index this.ROWS - 1) is full
+            return this.board[this.ROWS - 1].every(cell => cell !== this.EMPTY);
         }
         
         // Undo last move
@@ -428,56 +445,178 @@ document.addEventListener('DOMContentLoaded', () => {
             return -1;
         }
         
+        // *** NEW HELPER: Find immediate winning move for a player ***
+        findImmediateWin(player) {
+            for (let col = 0; col < this.COLS; col++) {
+                if (this.isValidMove(col)) {
+                    const row = this.getFirstEmptyRow(col);
+                    if (row !== -1) {
+                        this.board[row][col] = player; // Temporarily make the move
+                        const isWin = this.checkWin(row, col, player);
+                        this.board[row][col] = this.EMPTY; // Undo temporary move
+                        if (isWin) {
+                            return col; // Found winning move
+                        }
+                    }
+                }
+            }
+            return -1; // No immediate winning move found
+        }
+        
         // Make AI move
         makeAIMove() {
-            if (this.gameOver) return;
-            
-            let col;
-            
-            // Based on difficulty level
-            switch (this.currentDifficulty) {
-                case 1: // Easy - random move
-                    col = this.randomMove();
-                    break;
-                case 2: // Medium - minimax with low depth
-                    col = this.minimax(2, -Infinity, Infinity, true).col;
-                    break;
-                case 3: // Hard - minimax with higher depth
-                    col = this.minimax(4, -Infinity, Infinity, true).col;
-                    break;
-                default:
-                    col = this.randomMove();
-                    break;
+            // AI logic should not run if game is already over
+            if (this.gameOver) {
+                 this.playerTurn = true; // Ensure player turn is re-enabled if somehow called when game over
+                 this.isProcessingMove = false;
+                 this.boardElement.classList.remove('ai-turn');
+                 return;
             }
-            
-            if (col !== -1 && this.isValidMove(col)) {
-                const row = this.getFirstEmptyRow(col);
-                this.board[row][col] = this.AI;
-                this.moveHistory.push({row, col, player: this.AI});
-                
-                this.updateBoard();
-                
-                // Check if AI won
-                if (this.checkWin(row, col, this.AI)) {
-                    this.winnerMessage.textContent = 'Комп\'ютер переміг!';
-                    this.gameOver = true;
-                    this.gameOverElement.classList.add('active');
+
+            let bestCol = -1;
+
+            // Difficulty-based strategy
+            if (this.currentDifficulty > 1) { // Medium or Hard
+                // 1. Check if AI can win immediately
+                bestCol = this.findImmediateWin(this.AI);
+
+                // 2. If not, check if Player can win immediately and block
+                if (bestCol === -1) {
+                    bestCol = this.findImmediateWin(this.PLAYER);
                 }
-                
-                // Check for draw
-                else if (this.isBoardFull()) {
-                    this.winnerMessage.textContent = 'Нічия!';
-                    this.gameOver = true;
-                    this.gameOverElement.classList.add('active');
+            }
+
+            // 3. If no immediate win/block found, or if Easy difficulty
+            if (bestCol === -1) {
+                 if (this.currentDifficulty === 1) { // Easy
+                    bestCol = this.randomMove();
+                } else { // Medium or Hard - use Minimax
+                    let bestScore = -Infinity;
+                    let alpha = -Infinity;
+                    let beta = Infinity;
+                    // Adjust depth based on difficulty
+                    const depth = this.currentDifficulty === 2 ? 3 : 5; // Example depths
+
+                    let possibleMoves = [];
+                     for (let c = 0; c < this.COLS; c++) {
+                         if (this.isValidMove(c)) {
+                             possibleMoves.push(c);
+                         }
+                     }
+
+                     // Shuffle moves to add variability when scores are equal
+                     possibleMoves.sort(() => Math.random() - 0.5);
+
+
+                    for (const col of possibleMoves) {
+                        // No need to check isValidMove again, already filtered
+                        const row = this.getFirstEmptyRow(col);
+                        if (row !== -1) { // Should always be valid here
+                             this.board[row][col] = this.AI;
+                             let score = this.minimax(depth, alpha, beta, false); // False because next turn is minimizing (Player)
+                             this.board[row][col] = this.EMPTY; // Undo move
+
+                             if (score > bestScore) {
+                                 bestScore = score;
+                                 bestCol = col;
+                             }
+                             alpha = Math.max(alpha, score); // Update alpha for pruning
+
+                             // Beta cut-off
+                             if (beta <= alpha) {
+                                 break;
+                             }
+                        }
+                    }
+
+                    // If minimax didn't find a move (e.g., all moves lead to immediate loss)
+                     if (bestCol === -1 && possibleMoves.length > 0) {
+                         bestCol = possibleMoves[0]; // Pick the first shuffled valid move as fallback
+                     }
                 }
-                // If game is not over, unlock player input for next turn
-                else {
-                    this.playerTurn = true;
-                }
+            }
+
+            // Fallback if absolutely no move found (e.g., board full, though isBoardFull should catch this)
+            if (bestCol === -1) {
+                 let validCols = [];
+                 for (let c = 0; c < this.COLS; c++) {
+                     if (this.isValidMove(c)) validCols.push(c);
+                 }
+                 if (validCols.length > 0) {
+                     bestCol = validCols[Math.floor(Math.random() * validCols.length)];
+                 } else {
+                     console.error("AI Error: No valid moves found, but board not detected as full.");
+                     // Handle potential draw if missed earlier
+                     if (!this.gameOver) {
+                         this.winnerMessage.textContent = 'Нічия!';
+                         this.gameOver = true;
+                         this.gameOverElement.classList.add('active');
+                     }
+                     this.playerTurn = true;
+                     this.isProcessingMove = false;
+                     this.boardElement.classList.remove('ai-turn');
+                     return; // Exit AI move logic
+                 }
+            }
+
+
+            // Make the chosen move if one was determined and is valid
+            if (bestCol !== -1 && this.isValidMove(bestCol)) {
+                const row = this.getFirstEmptyRow(bestCol);
+                 if (row !== -1) { // Ensure the determined column is still valid
+                     this.board[row][bestCol] = this.AI;
+                     this.moveHistory.push({row, col: bestCol, player: this.AI});
+                     this.updateBoard(); // Update board visually AFTER making the move
+
+                     // Check if AI won
+                     if (this.checkWin(row, bestCol, this.AI)) {
+                         this.winnerMessage.textContent = 'Комп\'ютер переміг!';
+                         this.gameOver = true;
+                         this.gameOverElement.classList.add('active');
+                     }
+                     // Check for draw AFTER AI move
+                     else if (this.isBoardFull()) {
+                         this.winnerMessage.textContent = 'Нічия!';
+                         this.gameOver = true;
+                         this.gameOverElement.classList.add('active');
+                     }
+                 } else {
+                      console.error("AI Logic Error: getFirstEmptyRow returned -1 for a supposedly valid column:", bestCol);
+                 }
             } else {
-                // If AI couldn't make a valid move, unlock player input
-                this.playerTurn = true;
+                 console.error("AI Error: Determined bestCol is invalid or -1.", { bestCol });
+                  // Attempt to make a random valid move as a final fallback if possible
+                  let validCols = [];
+                  for (let c = 0; c < this.COLS; c++) {
+                      if (this.isValidMove(c)) validCols.push(c);
+                  }
+                  if(validCols.length > 0) {
+                      bestCol = validCols[Math.floor(Math.random() * validCols.length)];
+                      const row = this.getFirstEmptyRow(bestCol);
+                      if (row !== -1) {
+                          this.board[row][bestCol] = this.AI;
+                          this.moveHistory.push({row, col: bestCol, player: this.AI});
+                          this.updateBoard();
+                           // Check win/draw again after fallback move
+                           if (this.checkWin(row, bestCol, this.AI)) {
+                                this.winnerMessage.textContent = 'Комп\'ютер переміг!';
+                                this.gameOver = true;
+                                this.gameOverElement.classList.add('active');
+                           } else if (this.isBoardFull()) {
+                                this.winnerMessage.textContent = 'Нічия!';
+                                this.gameOver = true;
+                                this.gameOverElement.classList.add('active');
+                           }
+                      }
+                  }
             }
+
+            // Regardless of win/loss/draw, unlock for the next player turn if game not over
+            if (!this.gameOver) {
+                 this.playerTurn = true;
+            }
+             this.isProcessingMove = false; // Unlock processing
+             this.boardElement.classList.remove('ai-turn'); // Remove indicator class
         }
     }
     

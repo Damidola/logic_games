@@ -25,6 +25,9 @@ let initialPieceOffsetX = 0;
 let initialPieceOffsetY = 0;
 let isMouseDragging = false; // Flag to track mouse drag state
 let ignoreNextClick = false; // Flag to prevent click after drag release
+let lastMouseMoveTimeStamp = 0;
+let initialMouseX = 0;
+let initialMouseY = 0;
 
 // --- Game Mode ---
 let aiPlayerColor = 'black'; // AI plays as black by default
@@ -257,95 +260,165 @@ function addPiece(squareElement, color, row, col) {
 }
 
 function handlePieceClick(event) {
-    // Don't process clicks when dragging
-    if (isDragging || isMouseDragging) return;
-
-    // Ignore click if it was triggered after a drag release
+    // Prevent click handling right after a drag release
     if (ignoreNextClick) {
-        ignoreNextClick = false;
+        ignoreNextClick = false; // Reset flag
+        console.log("Ignoring click after drag/touch end.");
+        return;
+    }
+    
+    console.log("handlePieceClick triggered"); // Debug log
+
+    if (aiThinking) {
+        console.log("AI is thinking, ignoring piece click.");
+        return; // Ignore clicks while AI is thinking
+    }
+
+    // Stop event propagation to prevent handleSquareClick from also being triggered
+    event.stopPropagation();
+
+    const pieceElement = event.target.closest('.piece');
+    if (!pieceElement) return; // Click was not on a piece element
+
+    const squareElement = pieceElement.parentElement;
+    if (!squareElement || !squareElement.dataset.row || !squareElement.dataset.col) {
+        console.error("Could not find parent square or its data attributes for piece:", pieceElement);
         return;
     }
 
-    event.stopPropagation(); // Prevent square click event from firing
-    const pieceElement = event.target;
-    const squareElement = pieceElement.parentElement;
     const row = parseInt(squareElement.dataset.row);
     const col = parseInt(squareElement.dataset.col);
     const pieceData = boardState[row][col];
 
-    if (pieceData.color !== currentPlayer) {
-        console.log("Not your turn or not your piece.");
-        return;
-    }
+    console.log(`Clicked on piece at ${row},${col}, color: ${pieceData?.color}, current player: ${currentPlayer}`);
 
-    // If a capture is mandatory, only allow selecting pieces that can capture
-    if (mustCapture) {
-        const canPieceCapture = availableCaptures.some(capture => capture.startRow === row && capture.startCol === col);
-        if (!canPieceCapture) {
-            console.log("Mandatory capture: You must select a piece that can capture.");
-            return;
-        }
-    } else {
-        // Check if this piece has any valid moves before allowing selection
-        const possibleMoves = calculateValidMoves(row, col, pieceData.isKing);
-        if (possibleMoves.length === 0) {
-            console.log("This piece has no valid moves.");
-            return;
-        }
-    }
-
-    selectPiece(pieceElement, row, col, pieceData.isKing);
-}
-
-function handleSquareClick(event) {
-    // Проверяем, попытка ли это хода или выбора шашки
-    const squareElement = event.target.closest('.square');
-    if (!squareElement) return;
-
-    // Если перетаскивание активно, игнорируем клики
-    // или если это клик сразу после перетаскивания
-    if (isDragging || isMouseDragging || aiThinking || ignoreNextClick) {
-        if (ignoreNextClick) ignoreNextClick = false; // Сбросить флаг, если он был причиной
-        return;
-    }
-
-    const clickedRow = parseInt(squareElement.dataset.row);
-    const clickedCol = parseInt(squareElement.dataset.col);
-    
-    // Проверяем, есть ли на клетке шашка текущего игрока
-    const pieceData = boardState[clickedRow]?.[clickedCol];
-    if (pieceData && pieceData.color === currentPlayer) {
-        // Если кликнули на свою шашку, выбираем её и показываем возможные ходы
-        const pieceElement = squareElement.querySelector('.piece');
-        if (pieceElement) {
-            handlePieceClick({ target: pieceElement, stopPropagation: () => {} });
-            return;
-        }
-    }
-    
-    // Если нет выбранной шашки, нечего делать дальше
-    if (!selectedPiece) return;
-
-    // Check if this square has valid move data stored
-    if (!squareElement.dataset.moveInfo) {
-        console.log("Invalid move target (no move info)");
-        // If clicking an invalid square AFTER selecting a piece that MUST capture, keep it selected.
-        // Otherwise, deselect.
-        const pieceMustMove = mustCapture && availableCaptures.some(capInfo => 
-            capInfo.startRow === selectedPiece.row && capInfo.startCol === selectedPiece.col);
-        if (!pieceMustMove) {
+    // Если нажали не на своей шашке - отменяем выбор текущей шашки и игнорируем дальнейшие действия
+    if (!pieceData || pieceData.color !== currentPlayer) {
+        console.log(`Clicked on opponent piece at ${row},${col} - deselecting current piece`);
+        // Deselect any currently selected piece
+        if (selectedPiece) {
             deselectPiece();
         }
         return;
     }
 
-    const moveInfo = JSON.parse(squareElement.dataset.moveInfo);
+    // --- Player clicked their own piece ---
+    console.log(`Clicked own piece at ${row},${col}. Selected piece:`, selectedPiece);
+
+    // Check for mandatory captures
+    if (mustCapture) {
+        const pieceCanCapture = availableCaptures.some(capInfo => capInfo.startRow === row && capInfo.startCol === col);
+        if (!pieceCanCapture) {
+            console.log("Must capture, but clicked piece cannot capture.");
+            // Highlight pieces that can capture for visual feedback
+            highlightMandatoryPieces();
+            return;
+        }
+        // If the clicked piece *can* capture, proceed to selection logic below.
+    }
+
+    // Проверим, может ли шашка сделать ход
+    const possibleMoves = calculateValidMoves(row, col, pieceData.isKing);
+    if (possibleMoves.length === 0) {
+        console.log(`Piece at ${row},${col} has no valid moves`);
+        // If there's a currently selected piece, deselect it
+        if (selectedPiece) {
+            console.log("Deselecting current piece because clicked piece has no valid moves");
+            deselectPiece();
+        }
+        return;
+    }
+
+    if (selectedPiece) {
+        // If the *same* piece is clicked again
+        if (selectedPiece.row === row && selectedPiece.col === col) {
+            console.log("Deselecting piece.");
+            deselectPiece();
+        } else {
+            // If a *different* piece of the current player is clicked
+            console.log("Switching selected piece.");
+            deselectPiece(); // Deselect the old one
+            selectPiece(pieceElement, row, col, pieceData.isKing); // Select the new one
+        }
+    } else {
+        // No piece was selected, so select this one
+        console.log("Selecting piece.");
+        selectPiece(pieceElement, row, col, pieceData.isKing);
+    }
+}
+
+function handleSquareClick(event) {
+    // Prevent click handling right after a drag release
+    if (ignoreNextClick) {
+        ignoreNextClick = false; // Reset flag
+        console.log("Ignoring square click after drag/touch end.");
+        return;
+    }
     
-    // Execute the move
-    movePiece(selectedPiece.row, selectedPiece.col, clickedRow, clickedCol, moveInfo);
+    console.log("handleSquareClick triggered"); // Debug log
+
+    // If a piece inside a square was clicked, don't proceed (handlePieceClick handles it)
+    if (event.target.closest('.piece')) {
+        console.log("Square click contains piece - delegating to piece handler");
+        return;
+    }
+
+    const squareElement = event.target.closest('.square');
+    if (!squareElement || !squareElement.dataset.row || !squareElement.dataset.col) {
+        // Click might be outside the board or on something else
+        console.log("Clicked outside a valid square or square has no data.");
+        return;
+    }
+
+    const targetRow = parseInt(squareElement.dataset.row);
+    const targetCol = parseInt(squareElement.dataset.col);
+    
+    // If no piece is selected or AI is thinking, just ignore the click
+    if (!selectedPiece || aiThinking) {
+        console.log(`Square click ignored. Selected piece: ${!!selectedPiece}, AI thinking: ${aiThinking}`);
+        return;
+    }
+
+    console.log(`Attempting move from ${selectedPiece.row},${selectedPiece.col} to ${targetRow},${targetCol}`);
+
+    // Get valid moves for the selected piece
+    // Pass true to ignoreGlobalMandatory because we've already filtered selectable pieces if mustCapture is true
+    const validMoves = calculateValidMoves(selectedPiece.row, selectedPiece.col, selectedPiece.isKing, true);
+
+    // Find if the clicked square is a valid destination
+    const move = validMoves.find(m => m.toRow === targetRow && m.toCol === targetCol);
+
+    if (move) {
+        console.log("Found valid move:", move);
+        // If captures are mandatory globally, ensure this specific move is a capture
+        if (mustCapture && !move.isCapture) {
+            console.log("Invalid move: Must make a capture.");
+            // Provide feedback - re-highlight valid capture moves
+            const capturesForSelected = findImmediateCaptures(selectedPiece.row, selectedPiece.col, selectedPiece.isKing, currentPlayer);
+            if (capturesForSelected.length > 0) {
+                clearHighlights(); // Clear any previous non-capture highlights
+                highlightValidMoves(selectedPiece.row, selectedPiece.col, selectedPiece.isKing); // Re-highlight, which should now only show captures
+            }
+            return; // Ignore the non-capture move click
+        }
+
+        console.log(`Executing move from ${selectedPiece.row},${selectedPiece.col} to ${targetRow},${targetCol}`);
+        // Pass the detailed move info (which includes capture details)
+        movePiece(selectedPiece.row, selectedPiece.col, targetRow, targetCol, move);
+    } else {
+        // If the clicked square is not a valid move, deselect the piece
+        console.log("Invalid move, deselecting piece");
+        deselectPiece();
+    }
 }
 
 function selectPiece(pieceElement, row, col, isKing) {
+    // Check if this is the same piece already selected
+    if (selectedPiece && selectedPiece.row === row && selectedPiece.col === col) {
+        console.log(`Piece at (${row}, ${col}) already selected, not reselecting`);
+        return; // Skip redundant selection
+    }
+    
     deselectPiece(); // Deselect any previously selected piece
     selectedPiece = { row, col, element: pieceElement, isKing };
     pieceElement.classList.add('selected');
@@ -354,14 +427,16 @@ function selectPiece(pieceElement, row, col, isKing) {
 }
 
 function deselectPiece() {
+    console.log("Deselecting current piece");
+    
     if (selectedPiece) {
         selectedPiece.element.classList.remove('selected');
+        console.log(`Removed 'selected' class from piece at (${selectedPiece.row}, ${selectedPiece.col})`);
     }
+    
     selectedPiece = null;
-    // Remove previous highlights
-    document.querySelectorAll('.valid-move, .valid-capture').forEach(el => {
-        el.classList.remove('valid-move', 'valid-capture');
-    });
+    // Remove previous highlights and move info
+    clearHighlights();
 }
 
 function getSquareElement(row, col) {
@@ -371,6 +446,19 @@ function getSquareElement(row, col) {
 // --- Game Logic Functions (to be implemented) ---
 
 function highlightValidMoves(row, col, isKing) {
+    // First check if this piece is already highlighted to avoid duplicates
+    const existingHighlights = document.querySelectorAll('.valid-move, .valid-capture').length;
+    const pieceIsAlreadyHighlighted = selectedPiece && 
+                                     selectedPiece.row === row && 
+                                     selectedPiece.col === col &&
+                                     existingHighlights > 0;
+    
+    if (pieceIsAlreadyHighlighted) {
+        console.log(`Piece at (${row}, ${col}) already has highlighted moves, skipping duplicate call`);
+        return true; // Return true to indicate valid moves exist
+    }
+    
+    // Only log once to avoid duplicate logs
     console.log("Highlighting next moves for", row, col, isKing);
     clearHighlights();
 
@@ -387,6 +475,12 @@ function highlightValidMoves(row, col, isKing) {
             targetSquare.dataset.moveInfo = JSON.stringify(move);
         }
     });
+    
+    // Add a debugging check to see if moves are being highlighted properly
+    const highlightedSquares = document.querySelectorAll('.valid-move, .valid-capture');
+    console.log(`Highlighted ${highlightedSquares.length} squares for piece at (${row}, ${col})`);
+    
+    return moves.length > 0; // Return whether there are valid moves
 }
 
 function movePiece(startRow, startCol, endRow, endCol, moveInfo) {
@@ -780,9 +874,14 @@ function isValidSquare(row, col) {
 }
 
 function clearHighlights() {
+    // Add debugging to help track when highlights are cleared
+    console.log("Clearing all highlights");
+    
     document.querySelectorAll('.valid-move, .valid-capture').forEach(el => {
         el.classList.remove('valid-move', 'valid-capture');
+        if (el.dataset.moveInfo) {
         delete el.dataset.moveInfo;
+        }
     });
 }
 
@@ -997,6 +1096,35 @@ document.getElementById('undo-btn').addEventListener('click', restorePreviousSta
 document.getElementById('new-game-btn').addEventListener('touchstart', (e) => { e.preventDefault(); resetGame(); }, { passive: false });
 document.getElementById('undo-btn').addEventListener('touchstart', (e) => { e.preventDefault(); restorePreviousState(); }, { passive: false });
 
+// Добавляем обработчик клика на доску для снятия выбора с шашки
+boardElement.addEventListener('click', function(event) {
+    // Если клик был прямо на шашку или на клетку, то соответствующие обработчики уже позаботятся об этом
+    if (event.target.classList.contains('piece') || event.target.classList.contains('square')) {
+        return;
+    }
+    
+    // Если клик был на пустом месте доски и есть выбранная шашка - снимаем выбор
+    if (selectedPiece && !isDragging && !isMouseDragging && !aiThinking && !ignoreNextClick) {
+        console.log("Deselecting piece via board click");
+        deselectPiece();
+    }
+});
+
+// Добавляем обработчик клика на весь документ для снятия выбора при клике вне доски
+document.addEventListener('click', function(event) {
+    // Проверяем, был ли клик вне доски
+    if (!boardElement.contains(event.target) && 
+        !event.target.closest('.control-panel') && // Исключаем клики по панели управления
+        !event.target.closest('#game-result-modal')) { // Исключаем клики по модальному окну
+        
+        // Если есть выбранная шашка - снимаем выбор
+        if (selectedPiece && !isDragging && !isMouseDragging && !aiThinking && !ignoreNextClick) {
+            console.log("Deselecting piece via document click (outside board)");
+            deselectPiece();
+        }
+    }
+});
+
 createBoard();
 // Initial status check is now done inside the first switchPlayer call if needed,
 // but better to call it explicitly after board creation for white's first turn.
@@ -1036,48 +1164,54 @@ function animateMove(element, toRow, toCol) {
 // --- Touch Drag and Drop Handlers ---
 
 function handleTouchStart(event) {
-    // Ignore if game over, AI's turn, or already dragging
-    if (checkWinCondition() || currentPlayer === aiPlayerColor || isDragging || aiThinking) return;
+    // Игнорируем, если игра окончена, ход AI, или уже идет перетаскивание
+    if (checkWinCondition() || currentPlayer === aiPlayerColor || isDragging || isMouseDragging || aiThinking) return;
 
     const originalPieceElement = event.target;
-    // Make sure we're touching a piece, not just any element
+    // Убеждаемся, что касание на шашке
     if (!originalPieceElement.classList.contains('piece')) return;
     
     const squareElement = originalPieceElement.closest('.square');
     if (!squareElement) return;
 
-    // Prevent default touch actions (scrolling, etc.)
+    // Предотвращаем стандартные действия прокрутки
     event.preventDefault();
 
     const startRow = parseInt(squareElement.dataset.row);
     const startCol = parseInt(squareElement.dataset.col);
     const pieceData = boardState[startRow][startCol];
 
-    // Check if it's the correct player's piece
+    // Проверяем, что это шашка текущего игрока
     if (!pieceData || pieceData.color !== currentPlayer) return;
 
-    // Check if this piece has any valid moves
+    // Проверяем, выбрана ли уже эта шашка
+    const isPieceAlreadySelected = selectedPiece && selectedPiece.row === startRow && selectedPiece.col === startCol;
+
+    // Проверяем, есть ли у шашки возможные ходы
     const possibleMoves = calculateValidMoves(startRow, startCol, pieceData.isKing);
     if (possibleMoves.length === 0) {
-        console.log("This piece has no valid moves.");
+        console.log("У этой шашки нет возможных ходов");
         if (mustCapture) {
             highlightMandatoryPieces();
         }
-        return;
+        return; // Не выбираем и не перетаскиваем шашку без ходов
     }
 
-    // Set a short timer to distinguish between tap and drag
+    // Устанавливаем таймер, чтобы отличить тап от начала перетаскивания
     this.tapTimeout = setTimeout(() => {
-        // If the timeout fires, it means it's a tap (not a drag yet)
+        // Если таймер сработал, это был просто тап
         this.tapTimeout = null;
+        
+        if (!isDragging) {
+            // Если была просто тап на уже выбранную шашку, отменяем выбор
+            if (isPieceAlreadySelected) {
+                console.log(`Отмена выбора шашки на ${startRow}, ${startCol} через тап`);
+                deselectPiece();
+            }
+        }
     }, 150);
     
-    // Select the piece and highlight its moves
-    clearHighlights();
-    selectPiece(originalPieceElement, startRow, startCol, pieceData.isKing);
-    highlightValidMoves(startRow, startCol, pieceData.isKing);
-
-    // Store data about the piece being dragged (for potential drag)
+    // Сохраняем данные о потенциально перетаскиваемой шашке
     draggedPieceData = {
         element: originalPieceElement,
         startRow: startRow,
@@ -1086,7 +1220,18 @@ function handleTouchStart(event) {
         color: pieceData.color
     };
 
-    // Get position information
+    // Если мы начинаем перетаскивать уже выбранную шашку, нам нужно очистить подсветку ходов
+    if (isPieceAlreadySelected) {
+        // Шашка уже выбрана, но мы хотим ее перетащить
+        // Оставляем её выбранной, но очищаем подсветку ходов
+        console.log("Начинаем перетаскивание уже выбранной шашки");
+    } else {
+        // Если это новая шашка, выбираем её
+        console.log(`Выбираем шашку на ${startRow}, ${startCol}`);
+        selectPiece(originalPieceElement, startRow, startCol, pieceData.isKing);
+    }
+
+    // Получаем позицию для перетаскивания
     const rect = originalPieceElement.getBoundingClientRect();
     const touch = event.touches[0];
     touchIdentifier = touch.identifier;
@@ -1095,20 +1240,20 @@ function handleTouchStart(event) {
     initialPieceOffsetX = initialTouchX - rect.left;
     initialPieceOffsetY = initialTouchY - rect.top;
 
-    // Add document listeners for move and end (for potential drag)
+    // Добавляем обработчики для перемещения и окончания касания
     document.addEventListener('touchmove', handleTouchMove, { passive: false });
     document.addEventListener('touchend', handleTouchEnd, { passive: false });
     document.addEventListener('touchcancel', handleTouchEnd, { passive: false });
 }
 
 function handleTouchMove(event) {
-    // Clear the tap timeout - it's a drag, not a tap
+    // Clear the tap timeout - it's a drag, not a tap - RESTORED!
     if (this.tapTimeout) {
         clearTimeout(this.tapTimeout);
         this.tapTimeout = null;
     }
 
-    if (!draggedPieceData) return;
+    if (!draggedPieceData) return; // Should have data if touch started correctly
 
     // Find the specific touch that started the drag
     const touch = Array.from(event.touches).find(t => t.identifier === touchIdentifier);
@@ -1117,27 +1262,32 @@ function handleTouchMove(event) {
     // Prevent scrolling
     event.preventDefault();
 
-    // Only create drag element on first actual move
+    // Only create drag element on first actual move *if not already created*
     if (!isDragging) {
-        isDragging = true;
-        
-        // Create the draggable element when we confirm it's a drag
+        isDragging = true; // Set flag to indicate drag has started
+
+        // --- Add dragging class to the original piece ---
+        if (draggedPieceData && draggedPieceData.element) {
+            draggedPieceData.element.classList.add('dragging');
+        }
+
+        // --- Clone Creation Code ---
         const pieceElement = draggedPieceData.element;
         const rect = pieceElement.getBoundingClientRect();
         
-        draggedPieceElement = document.createElement('div');
-        draggedPieceElement.className = `piece ${draggedPieceData.color}-piece dragging-piece`;
-        if (draggedPieceData.isKing) draggedPieceElement.classList.add('king');
-        
+        draggedPieceElement = pieceElement.cloneNode(true); // Clone the original piece
+        draggedPieceElement.classList.remove('dragging'); // Remove from clone if already added
+        draggedPieceElement.classList.add('dragging-piece'); // Add specific drag clone style
         draggedPieceElement.style.width = `${rect.width}px`;
         draggedPieceElement.style.height = `${rect.height}px`;
-        draggedPieceElement.style.position = 'fixed';
-        draggedPieceElement.style.pointerEvents = 'none';
+        draggedPieceElement.style.position = 'fixed'; // Use fixed for viewport positioning
+        draggedPieceElement.style.pointerEvents = 'none'; // Ignore pointer events on clone
         draggedPieceElement.style.zIndex = '1000';
-        draggedPieceElement.style.left = `${rect.left}px`;
+        draggedPieceElement.style.opacity = '1'; // Ensure clone is fully visible
+        draggedPieceElement.style.left = `${rect.left}px`; // Initial position
         draggedPieceElement.style.top = `${rect.top}px`;
         
-        // Add crown if king
+        // Add crown if king (efficiently, checks data)
         if (draggedPieceData.isKing) {
             const crown = document.createElement('div');
             crown.textContent = '👑';
@@ -1154,14 +1304,14 @@ function handleTouchMove(event) {
             draggedPieceElement.appendChild(crown);
         }
         
-        // Hide the original piece
+        // Slightly hide the original piece
         pieceElement.style.opacity = '0.3';
         
-        // Append to body
+        // Append clone to body
         document.body.appendChild(draggedPieceElement);
     }
 
-    if (!draggedPieceElement) return;
+    if (!draggedPieceElement) return; // Should exist now if dragging
 
     // Get board boundaries to keep piece within board visually
     const boardRect = boardElement.getBoundingClientRect();
@@ -1178,9 +1328,13 @@ function handleTouchMove(event) {
     newX = Math.max(boardRect.left, Math.min(newX, boardRect.right - pieceWidth));
     newY = Math.max(boardRect.top, Math.min(newY, boardRect.bottom - pieceHeight));
     
-    // Update position
+    // Update position using requestAnimationFrame for smoother rendering
+    requestAnimationFrame(() => {
+        if (draggedPieceElement) { // Check again in case it was removed
     draggedPieceElement.style.left = `${newX}px`;
     draggedPieceElement.style.top = `${newY}px`;
+        }
+    });
 }
 
 function handleTouchEnd(event) {
@@ -1194,10 +1348,11 @@ function handleTouchEnd(event) {
         document.removeEventListener('touchend', handleTouchEnd);
         document.removeEventListener('touchcancel', handleTouchEnd);
         
+        // Была ли это просто легкая тап без драга?
         if (!isDragging) {
-            // It was just a tap, don't deselect
+            // Это был просто тап, данные для драга очищаем, но выбор шашки оставляем
             if (draggedPieceData) {
-                // Reset drag data but keep selection
+                // Сброс данных для драга, но сохранение выбора
                 draggedPieceData = null;
                 touchIdentifier = null;
             }
@@ -1210,18 +1365,26 @@ function handleTouchEnd(event) {
         return;
     }
 
-    // If not dragging (just a tap), simply return to keep the piece selected
+    // Если это был просто тап (без драга), просто вернемся, сохраняя выбор шашки
     if (!isDragging || !draggedPieceElement) {
         if (draggedPieceData && draggedPieceData.element) {
+            // Возвращаем нормальный вид шашке
             draggedPieceData.element.style.opacity = '1';
+            draggedPieceData.element.classList.remove('dragging');
         }
+        
+        // Очищаем данные для драга
         draggedPieceData = null;
         touchIdentifier = null;
+        
+        // Удаляем обработчики событий
         document.removeEventListener('touchmove', handleTouchMove);
         document.removeEventListener('touchend', handleTouchEnd);
         document.removeEventListener('touchcancel', handleTouchEnd);
         return;
     }
+    
+    // Дальше продолжается обработка окончания перетаскивания...
 
     // Find the specific touch that ended
     let touch;
@@ -1233,7 +1396,7 @@ function handleTouchEnd(event) {
     }
     
     if (!touch) {
-        // If no matching touch found, just clean up
+        // If the ending touch doesn't match the starting one (unlikely but possible), clean up
         cleanupDragOperation(false);
         return;
     }
@@ -1241,65 +1404,84 @@ function handleTouchEnd(event) {
     // Prevent default behavior
     event.preventDefault();
 
-    // Get elements at touch position
-    const x = touch.clientX;
-    const y = touch.clientY;
+    let moveMade = false;
+    // Get drop location
+    const endX = touch.clientX;
+    const endY = touch.clientY;
     
-    // Hide the dragged element to find what's underneath
-    if (draggedPieceElement) {
+    // --- Snap-to-Square Logic ---
+    const boardRect = boardElement.getBoundingClientRect();
+    const squareSize = boardRect.width / COLS; // Assuming square board
+
+    // Calculate potential row/col based on drop position relative to board
+    const relativeX = endX - boardRect.left;
+    const relativeY = endY - boardRect.top;
+    const potentialCol = Math.floor(relativeX / squareSize);
+    const potentialRow = Math.floor(relativeY / squareSize);
+
+    // Find the center of the potential target square
+    const targetSquareCenterX = boardRect.left + (potentialCol + 0.5) * squareSize;
+    const targetSquareCenterY = boardRect.top + (potentialRow + 0.5) * squareSize;
+
+    // Calculate distance from drop point to square center
+    const distance = Math.sqrt(Math.pow(endX - targetSquareCenterX, 2) + Math.pow(endY - targetSquareCenterY, 2));
+
+    // Temporarily hide clone to find element underneath more reliably if needed
         draggedPieceElement.style.display = 'none';
+    const elementUnderMouse = document.elementFromPoint(endX, endY); // Check direct element first
+    draggedPieceElement.style.display = ''; // Show again
+
+    // Prioritize the calculated square if the drop is reasonably close
+    const SNAP_THRESHOLD = squareSize * 0.75; // Drop within 3/4 of square size from center
+    let targetSquare = null;
+
+    if (distance < SNAP_THRESHOLD && isValidSquare(potentialRow, potentialCol)) {
+        // Get the square element based on calculated row/col
+        targetSquare = getSquareElement(potentialRow, potentialCol);
+    } else if (elementUnderMouse) {
+        // Fallback: Check element directly under pointer if snap failed or too far
+        targetSquare = elementUnderMouse.closest('.square.dark');
     }
-    
-    // Get the element under the touch point
-    const targetElement = document.elementFromPoint(x, y);
-    
-    // Show the dragged element again
-    if (draggedPieceElement) {
-        draggedPieceElement.style.display = '';
-    }
-    
-    // Process the drop
-    if (targetElement) {
-        // Find the square that was touched (either directly or a child)
-        const targetSquare = targetElement.classList.contains('square') ? 
-                            targetElement : 
-                            targetElement.closest('.square');
-                
-        if (targetSquare && targetSquare.classList.contains('dark')) {
+
+    if (targetSquare) {
             const endRow = parseInt(targetSquare.dataset.row);
             const endCol = parseInt(targetSquare.dataset.col);
             
-            // Check if this is a valid move
+        // Check if this target square is a valid move
             const validMoves = calculateValidMoves(draggedPieceData.startRow, draggedPieceData.startCol, draggedPieceData.isKing);
-            const validMove = validMoves.find(move => move.toRow === endRow && move.toCol === endCol);
-            
-            if (validMove) {
-                // Make the move
-                movePiece(draggedPieceData.startRow, draggedPieceData.startCol, endRow, endCol, validMove);
-                cleanupDragOperation(true); // Move was successful
-                return;
-            }
+        const validMoveInfo = validMoves.find(move => move.toRow === endRow && move.toCol === endCol);
+
+        if (validMoveInfo) {
+            // Execute the move
+            movePiece(draggedPieceData.startRow, draggedPieceData.startCol, endRow, endCol, validMoveInfo);
+            moveMade = true;
+            // ignoreNextClick is now handled by cleanupDragOperation
+            // ignoreNextClick = true; // Prevent click event after successful drop
+            // setTimeout(() => { ignoreNextClick = false; }, 300);
         }
     }
-    
-    // If we get here, the move was invalid
-    cleanupDragOperation(false);
+
+    // Full cleanup for drag end (successful or failed move)
+    cleanupDragOperation(moveMade);
 }
 
 // Helper function to clean up after drag operations
 function cleanupDragOperation(successful) {
+    console.log("Cleaning up drag operation. States before cleanup:", {isDragging, isMouseDragging, draggedPieceData});
+    
     // Remove the dragged element
     if (draggedPieceElement && draggedPieceElement.parentNode) {
         document.body.removeChild(draggedPieceElement);
+        draggedPieceElement = null; // Clear reference
     }
     
-    // Restore the original piece visibility
+    // Restore the original piece visibility and remove dragging class
     if (draggedPieceData && draggedPieceData.element) {
-        // Always restore visibility whether move was successful or not
         draggedPieceData.element.style.opacity = '1';
+        draggedPieceData.element.classList.remove('dragging'); // Remove scaling class
     }
     
-    // Clean up highlights and selection if move failed
+    // Clean up highlights and selection if move failed or not completed
     if (!successful) {
         clearHighlights();
         deselectPiece();
@@ -1309,55 +1491,95 @@ function cleanupDragOperation(successful) {
     document.removeEventListener('touchmove', handleTouchMove);
     document.removeEventListener('touchend', handleTouchEnd);
     document.removeEventListener('touchcancel', handleTouchEnd);
+    document.removeEventListener('mousemove', handleMouseMove);
+    document.removeEventListener('mouseup', handleMouseUp);
     
-    // Reset state variables
+    // BUGFIX: Reset state variables - ensure they're all properly reset
     isDragging = false;
-    draggedPieceElement = null;
+    isMouseDragging = false;
     draggedPieceData = null;
     touchIdentifier = null;
+    
+    // Set ignoreNextClick only if the drag was successful and resulted in a move
+    if (successful) {
+        ignoreNextClick = true;
+        // Automatically reset it after a short delay
+        setTimeout(() => { ignoreNextClick = false; }, 200);
+    } else {
+        // If the drag was not successful, don't ignore the next click
+        ignoreNextClick = false;
+    }
+    
+    console.log("Drag cleanup complete. States after cleanup:", {isDragging, isMouseDragging, ignoreNextClick});
 }
-
-// --- End Touch Handlers --- 
 
 // --- Mouse Drag and Drop Handlers ---
 
+// Check if device supports touch events (mobile/tablet)
+const isTouchDevice = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0) || (navigator.msMaxTouchPoints > 0);
+
 function handleMouseDown(event) {
-    // Ignore if game over, AI's turn, or already dragging
+    // Completely disable drag operations on non-touch devices (PC)
+    if (!isTouchDevice) {
+        // On PC, only allow click selection, not dragging
+        return;
+    }
+    
+    // Original drag handling (only for touch devices)
+    // Игнорируем, если игра окончена, ход AI, или уже идет перетаскивание
     if (checkWinCondition() || currentPlayer === aiPlayerColor || isDragging || isMouseDragging || aiThinking) return;
 
-    // Prevent default behavior immediately
-    if (event.cancelable) event.preventDefault();
+    // Для правого клика показываем контекстное меню игры
+    if (event.button === 2) {
+        showGameContextMenu(event);
+        return;
+    }
+
+    // Убеждаемся, что клик на шашке
+    const originalPieceElement = event.target.closest('.piece');
+    if (!originalPieceElement) return;
     
-    const originalPieceElement = event.target;
     const squareElement = originalPieceElement.closest('.square');
     if (!squareElement) return;
+
+    // Предотвращаем выделение текста и прочие стандартные действия
+    event.preventDefault();
 
     const startRow = parseInt(squareElement.dataset.row);
     const startCol = parseInt(squareElement.dataset.col);
     const pieceData = boardState[startRow][startCol];
 
-    // Check if it's the correct player's piece
+    // Проверяем, что это шашка текущего игрока
     if (!pieceData || pieceData.color !== currentPlayer) return;
     
-    // Check if this piece has any valid moves (captures prioritized by calculateValidMoves)
+    // Проверяем, выбрана ли уже эта шашка
+    const isPieceAlreadySelected = selectedPiece && selectedPiece.row === startRow && selectedPiece.col === startCol;
+
+    // Проверяем, есть ли у шашки возможные ходы
     const possibleMoves = calculateValidMoves(startRow, startCol, pieceData.isKing);
     if (possibleMoves.length === 0) {
-        console.log("This piece has no valid moves (or cannot start/continue mandatory capture).");
-        // Optionally provide visual feedback here
+        console.log("У этой шашки нет возможных ходов");
         if (mustCapture) {
-            highlightMandatoryPieces(); // Re-highlight required pieces
+            highlightMandatoryPieces();
         }
-        return; // Prevent drag if no moves are possible from here
+        return; // Не выбираем и не перетаскиваем шашку без ходов
     }
 
-    isMouseDragging = true;
+    // Устанавливаем таймер, чтобы отличить клик от начала перетаскивания
+    this.clickTimeout = setTimeout(() => {
+        // Если таймер сработал, это был просто клик
+        this.clickTimeout = null;
+        
+        if (!isMouseDragging) {
+            // Если был просто клик на уже выбранную шашку, отменяем выбор
+            if (isPieceAlreadySelected) {
+                console.log(`Отмена выбора шашки на ${startRow}, ${startCol} через клик`);
+                deselectPiece();
+            }
+        }
+    }, 150);
 
-    // Select the piece and highlight its moves
-    clearHighlights();
-    selectPiece(originalPieceElement, startRow, startCol, pieceData.isKing);
-    highlightValidMoves(startRow, startCol, pieceData.isKing);
-
-    // Store data about the piece being dragged
+    // Сохраняем данные о потенциально перетаскиваемой шашке
     draggedPieceData = {
         element: originalPieceElement,
         startRow: startRow,
@@ -1366,208 +1588,261 @@ function handleMouseDown(event) {
         color: pieceData.color
     };
 
-    // Get position information first
-    const rect = originalPieceElement.getBoundingClientRect();
-    initialTouchX = event.clientX;
-    initialTouchY = event.clientY;
-    initialPieceOffsetX = initialTouchX - rect.left;
-    initialPieceOffsetY = initialTouchY - rect.top;
-
-    // Create optimized clone for dragging
-    draggedPieceElement = originalPieceElement.cloneNode(true);
-    draggedPieceElement.classList.add('dragging-piece');
-    draggedPieceElement.style.width = `${rect.width}px`;
-    draggedPieceElement.style.height = `${rect.height}px`;
-    draggedPieceElement.style.left = `${rect.left}px`;
-    draggedPieceElement.style.top = `${rect.top}px`;
-    
-    // Add crown if king more efficiently
-    if (pieceData.isKing) {
-        const crown = document.createElement('div');
-        crown.textContent = '👑';
-        crown.style.cssText = `
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            font-size: ${window.innerWidth <= 600 ? '18px' : '24px'};
-            z-index: 2;
-            text-shadow: 0 0 5px rgba(0, 0, 0, 0.5);
-            filter: drop-shadow(0 0 4px gold);
-        `;
-        draggedPieceElement.appendChild(crown);
+    // Если мы начинаем перетаскивать уже выбранную шашку, сохраняем выбор
+    if (isPieceAlreadySelected) {
+        // Шашка уже выбрана, но мы хотим ее перетащить
+        console.log("Начинаем перетаскивание уже выбранной шашки");
+    } else {
+        // Если это новая шашка, выбираем её
+        console.log(`Выбираем шашку на ${startRow}, ${startCol}`);
+        selectPiece(originalPieceElement, startRow, startCol, pieceData.isKing);
     }
-    
-    // Hide the original piece
-    originalPieceElement.style.opacity = '0.3';
-    
-    // Append to body - do this last for better performance
-    document.body.appendChild(draggedPieceElement);
 
-    // Add document listeners for mouse movements and release
-    document.addEventListener('mousemove', handleMouseMove, { passive: false });
+    // Получаем позицию для перетаскивания
+    const rect = originalPieceElement.getBoundingClientRect();
+    initialMouseX = event.clientX;
+    initialMouseY = event.clientY;
+    initialPieceOffsetX = initialMouseX - rect.left;
+    initialPieceOffsetY = initialMouseY - rect.top;
+
+    // Добавляем обработчики перемещения и отпускания мыши
+    document.addEventListener('mousemove', handleMouseMove);
     document.addEventListener('mouseup', handleMouseUp);
 }
 
 function handleMouseMove(event) {
-    if (!isMouseDragging || !draggedPieceElement) return;
+    // Выходим, если нет данных о перетаскивании
+    if (!draggedPieceData) return;
 
-    // Prevent text selection during drag
+    // Предотвращаем стандартные действия при перетаскивании
     if (event.cancelable) event.preventDefault();
 
-    // Get board boundaries
-    const boardRect = boardElement.getBoundingClientRect();
+    // Предотвращаем множественные обработки одного и того же события
+    if (event.timeStamp === lastMouseMoveTimeStamp) return;
+    lastMouseMoveTimeStamp = event.timeStamp;
     
-    // Calculate new position
-    let newX = event.clientX - initialPieceOffsetX;
-    let newY = event.clientY - initialPieceOffsetY;
+    // Очищаем таймер клика, если он есть - теперь мы точно перетаскиваем
+    if (this.clickTimeout) {
+        clearTimeout(this.clickTimeout);
+        this.clickTimeout = null;
+    }
     
-    // Get the element's dimensions
-    const pieceWidth = draggedPieceElement.offsetWidth;
-    const pieceHeight = draggedPieceElement.offsetHeight;
+    // Вычисляем, насколько сместилась мышь от начального положения
+    const deltaX = event.clientX - initialMouseX;
+    const deltaY = event.clientY - initialMouseY;
     
-    // Keep the piece within the board boundaries
-    newX = Math.max(boardRect.left, Math.min(newX, boardRect.right - pieceWidth));
-    newY = Math.max(boardRect.top, Math.min(newY, boardRect.bottom - pieceHeight));
+    // Если мы еще не начали перетаскивание, проверяем порог перемещения
+    if (!isMouseDragging) {
+        // Расстояние от начальной точки
+        const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+        
+        // Если расстояние меньше порога, не начинаем перетаскивание
+        if (distance < 5) {
+            return;
+        }
+        
+        // Начинаем перетаскивание
+        isMouseDragging = true;
+        startDragging(draggedPieceData.element, 
+                      draggedPieceData.startRow, 
+                      draggedPieceData.startCol, 
+                      draggedPieceData.isKing, 
+                      event.clientX, 
+                      event.clientY);
+    }
     
-    // Update position with requestAnimationFrame for improved performance
-    requestAnimationFrame(() => {
-        draggedPieceElement.style.left = `${newX}px`;
-        draggedPieceElement.style.top = `${newY}px`;
-    });
+    // Перемещаем элемент вместе с курсором
+    updateDraggedPiecePosition(event.clientX, event.clientY);
 }
 
 function handleMouseUp(event) {
-    if (!isMouseDragging || !draggedPieceElement) return;
-
-    // Prevent default actions
-    if (event.cancelable) event.preventDefault();
-
-    // Cleanup listeners first
-    document.removeEventListener('mousemove', handleMouseMove);
-    document.removeEventListener('mouseup', handleMouseUp);
-
-    // Get drop location
-    const endX = event.clientX;
-    const endY = event.clientY;
-
-    // Temporarily hide clone to find element underneath
-    draggedPieceElement.style.display = 'none';
-    const elementUnderMouse = document.elementFromPoint(endX, endY);
-    draggedPieceElement.style.display = '';
-
-    let moveMade = false;
-    if (elementUnderMouse) {
-        const targetSquare = elementUnderMouse.closest('.square.dark'); // Ensure it's a dark square
-        if (targetSquare) {
-            const endRow = parseInt(targetSquare.dataset.row);
-            const endCol = parseInt(targetSquare.dataset.col);
-
-            // Find if this target square is one of the valid moves highlighted earlier
-            const highlightedMoves = calculateValidMoves(draggedPieceData.startRow, draggedPieceData.startCol, draggedPieceData.isKing);
-            const validMoveInfo = highlightedMoves.find(move => move.toRow === endRow && move.toCol === endCol);
-
-            if (validMoveInfo) {
-                // Execute the move
-                movePiece(draggedPieceData.startRow, draggedPieceData.startCol, endRow, endCol, validMoveInfo);
-                moveMade = true;
-                 // Set flag to ignore the next click event only if a move was made
-                 ignoreNextClick = true;
-                 setTimeout(() => { ignoreNextClick = false; }, 300); // Reset after a short delay
-            }
+    if (!isMouseDragging || !draggedPieceData) {
+       // console.log("MouseUp ignored: Not dragging or no data.");
+       // Reset potentially stuck state if mouseup occurs unexpectedly
+        if (isMouseDragging) {
+             console.warn("MouseUp cleanup for potentially stuck drag state.");
+             cleanupDragOperation(false); // Assume unsuccessful
         }
+        return;
+    }
+    console.log("handleMouseUp:", event); // Debug log
+
+    // Make the temporary dragged element invisible
+    if (draggedPieceElement) {
+        draggedPieceElement.style.display = 'none';
     }
 
-    // Cleanup UI elements
-    if (draggedPieceElement.parentNode) {
-        document.body.removeChild(draggedPieceElement);
-    }
-    
-    // Always restore visibility of the original piece
-    if (draggedPieceData && draggedPieceData.element) {
-        draggedPieceData.element.style.opacity = '1';
-    }
-    
-    // If the move failed, clear highlights as well
-    if(!moveMade) {
-        clearHighlights();
-        deselectPiece(); // Also deselect if move failed
+    const targetElement = document.elementFromPoint(event.clientX, event.clientY);
+    const targetSquare = targetElement ? targetElement.closest('.square') : null;
+    let moveSuccessful = false;
+
+    if (targetSquare && targetSquare.dataset.row && targetSquare.dataset.col) {
+        const endRow = parseInt(targetSquare.dataset.row);
+        const endCol = parseInt(targetSquare.dataset.col);
+        const startRow = draggedPieceData.startRow;
+        const startCol = draggedPieceData.startCol;
+
+        console.log(`MouseUp: Attempting move from ${startRow},${startCol} to ${endRow},${endCol}`);
+
+        // Validate the move
+        const validMoves = calculateValidMoves(startRow, startCol, draggedPieceData.isKing, true); // Ignore global mandatory here
+        const moveInfo = validMoves.find(m => m.toRow === endRow && m.toCol === endCol);
+
+        if (moveInfo && (!mustCapture || moveInfo.isCapture)) {
+             console.log("MouseUp: Valid move found:", moveInfo);
+             // Select the piece *first* if it wasn't the selected one
+              if (!selectedPiece || selectedPiece.row !== startRow || selectedPiece.col !== startCol) {
+                   if(selectedPiece) deselectPiece();
+                   const originalPieceElement = boardState[startRow][startCol]?.element;
+                   if(originalPieceElement) {
+                       selectPiece(originalPieceElement, startRow, startCol, draggedPieceData.isKing);
+        } else {
+                        console.error("Cannot find original piece element to select for drag move!");
+                   }
+              }
+              // Now move the (now selected) piece
+             if(selectedPiece) { // Ensure selection succeeded
+                 movePiece(startRow, startCol, endRow, endCol, moveInfo);
+                 moveSuccessful = true;
+             } else {
+                 console.error("Failed to select piece before executing dragged move.");
+             }
+
+        } else {
+            console.log("MouseUp: Invalid move.");
+            // Snap back animation (optional)
+        }
+    } else {
+         console.log("MouseUp: Not dropped on a valid square.");
+        // Dropped outside - snap back (optional)
     }
 
-    // Reset state
-    isMouseDragging = false;
-    draggedPieceElement = null;
-    draggedPieceData = null;
+    // Cleanup drag state
+    cleanupDragOperation(moveSuccessful);
+
+    // Reset initial mouse position tracking
+    initialMouseX = 0;
+    initialMouseY = 0;
+    lastMouseMoveTimeStamp = 0;
 }
-
-// --- End Mouse Handlers --- 
 
 // --- Theme Handling ---
 const themeBtn = document.getElementById('theme-btn');
 const themeDropdown = document.getElementById('theme-dropdown');
 const themeOptions = document.querySelectorAll('.theme-option');
-let currentTheme = 'default';
+let currentTheme = 'default'; // Default theme
 
 // Check if a theme is stored in localStorage
 function initTheme() {
     const savedTheme = localStorage.getItem('checkers-theme');
-    if (savedTheme) {
+    // Проверяем, если сохраненная тема - одна из удаленных тем
+    if (savedTheme === 'wooden' || savedTheme === 'blue') {
+        // Установим тему по умолчанию
+        applyTheme('default');
+    } else if (savedTheme) {
         applyTheme(savedTheme);
+    } else {
+        applyTheme(currentTheme); // Apply default if nothing saved
     }
     
     // Mark the current theme as active in the dropdown
     themeOptions.forEach(option => {
-        if (option.dataset.theme === currentTheme) {
-            option.classList.add('active');
-        } else {
-            option.classList.remove('active');
-        }
+        option.classList.toggle('active', option.dataset.theme === currentTheme);
     });
 }
 
 // Toggle the theme dropdown
-themeBtn.addEventListener('click', (event) => {
-    themeDropdown.classList.toggle('active');
-    event.stopPropagation();
-});
+if (themeBtn && themeDropdown) {
+    themeBtn.addEventListener('click', (event) => {
+        event.stopPropagation(); // Prevent document click listener from closing it immediately
+        themeDropdown.classList.toggle('active');
+    });
+} else {
+    console.error("Theme button or dropdown not found!");
+}
 
 // Close the dropdown if clicked outside
 document.addEventListener('click', (event) => {
-    if (!themeBtn.contains(event.target) && !themeDropdown.contains(event.target)) {
+    if (themeDropdown && themeDropdown.classList.contains('active') &&
+        themeBtn && !themeBtn.contains(event.target) &&
+        !themeDropdown.contains(event.target)) {
         themeDropdown.classList.remove('active');
     }
 });
 
 // Handle theme selection
-themeOptions.forEach(option => {
-    option.addEventListener('click', () => {
-        const theme = option.dataset.theme;
-        applyTheme(theme);
-        themeDropdown.classList.remove('active');
-        
-        // Update active state in dropdown
-        themeOptions.forEach(opt => opt.classList.remove('active'));
-        option.classList.add('active');
+if (themeOptions.length > 0) {
+    themeOptions.forEach(option => {
+        option.addEventListener('click', () => {
+            const theme = option.dataset.theme;
+            applyTheme(theme);
+            themeDropdown.classList.remove('active');
+            
+            // Update active state in dropdown
+            themeOptions.forEach(opt => opt.classList.remove('active'));
+            option.classList.add('active');
+        });
     });
-});
+} else {
+    console.error("No theme options found!");
+}
 
 // Apply the selected theme
 function applyTheme(theme) {
-    // Remove previous theme class
+    console.log("Applying theme:", theme);
+    // Remove previous theme class from body if it exists
+    if (currentTheme && currentTheme !== 'default') {
     document.body.classList.remove(`theme-${currentTheme}`);
+    } else {
+         // Ensure default theme class is removed if switching from default
+         document.body.classList.remove(`theme-default`);
+    }
     
-    if (theme !== 'default') {
-        // Add new theme class
+    // Add new theme class if it's not the default
+    if (theme && theme !== 'default') {
         document.body.classList.add(`theme-${theme}`);
     }
     
-    // Update current theme
+    // Update current theme variable
     currentTheme = theme;
     
     // Save to localStorage
+    try {
     localStorage.setItem('checkers-theme', theme);
+    } catch (e) {
+      console.error("Could not save theme to localStorage:", e);
+    }
 }
 
 // Initialize theme on page load
 initTheme();
-initTheme();
+
+// Добавляем глобальный обработчик клика для обработки деселекта
+document.addEventListener('click', function(event) {
+    // Если нет выбранной шашки или ход ИИ или идет анимация - игнорируем
+    if (!selectedPiece || aiThinking || isDragging || isMouseDragging) {
+        return;
+    }
+    
+    // Проверяем, был ли клик на валидное поле для хода
+    const isValidMoveSquare = event.target.classList && 
+        (event.target.classList.contains('valid-move') || 
+         event.target.classList.contains('valid-capture') ||
+         event.target.closest('.valid-move') || 
+         event.target.closest('.valid-capture'));
+         
+    // Если кликнули на саму выбранную шашку (для отмены выбора) - позволяем обработчику шашки это сделать
+    const clickedOnSelectedPiece = selectedPiece.element && 
+        (event.target === selectedPiece.element || event.target.parentElement === selectedPiece.element);
+    
+    // Проверим, кликнули ли на другую свою шашку - позволяем обработчику шашки это обработать
+    const pieceElement = event.target.closest('.piece');
+    const isClickOnOwnPiece = pieceElement && 
+                             pieceElement.dataset.color === currentPlayer;
+    
+    // Если клик не на валидное поле для хода, не на выбранную шашку и не на свою шашку - отменяем выбор
+    if (!isValidMoveSquare && !clickedOnSelectedPiece && !isClickOnOwnPiece && !ignoreNextClick) {
+        console.log("Global click handler: clicked outside valid move squares, deselecting piece");
+        deselectPiece();
+    }
+});

@@ -266,4 +266,10 @@ body.dark-theme .menu-dot.active {
         font-size: 14px;
         padding: 8px 12px;
     }
+}
+
+/* Add this rule to disable clicks during AI turn */
+.board.ai-turn .column {
+    pointer-events: none;
+    cursor: not-allowed; /* Optional: change cursor */
 } 

@@ -33,9 +33,6 @@ let initialMouseY = 0;
 let aiPlayerColor = 'black'; // AI plays as black by default
 let aiThinking = false; // Track when AI is calculating its move
 
-// --- Drag Threshold ---
-const DRAG_THRESHOLD = 5; // Minimum pixels moved to initiate drag
-
 // Add modal elements
 const gameResultModal = document.getElementById('game-result-modal');
 const gameResultText = document.getElementById('game-result-text');
@@ -130,7 +127,7 @@ function executeAIMoveSimple(moveInfo) {
     };
     
     // Call movePiece directly
-    movePiece(moveInfo.startRow, moveInfo.startCol, moveInfo.toRow, moveInfo.toCol, move);
+    movePiece(moveInfo.startRow, moveInfo.startCol, moveInfo.toRow, moveInfo.toCol, moveInfo);
     
     // If AI turn is over, reset interaction
     if (currentPlayer !== aiPlayerColor) {
@@ -1177,8 +1174,16 @@ function handleTouchStart(event) {
     const squareElement = originalPieceElement.closest('.square');
     if (!squareElement) return;
 
-    // Предотвращаем стандартные действия прокрутки
-    event.preventDefault();
+    // Store the start time and position to detect if it's a tap or drag
+    const touchStartTime = Date.now();
+    const touch = event.touches[0];
+    const startX = touch.clientX;
+    const startY = touch.clientY;
+
+    // Prevents scrolling but allows tap detection
+    if (event.cancelable) {
+        event.preventDefault();
+    }
 
     const startRow = parseInt(squareElement.dataset.row);
     const startCol = parseInt(squareElement.dataset.col);
@@ -1200,20 +1205,6 @@ function handleTouchStart(event) {
         return; // Не выбираем и не перетаскиваем шашку без ходов
     }
 
-    // Устанавливаем таймер, чтобы отличить тап от начала перетаскивания
-    this.tapTimeout = setTimeout(() => {
-        // Если таймер сработал, это был просто тап
-        this.tapTimeout = null;
-        
-        if (!isDragging) {
-            // Если была просто тап на уже выбранную шашку, отменяем выбор
-            if (isPieceAlreadySelected) {
-                console.log(`Отмена выбора шашки на ${startRow}, ${startCol} через тап`);
-                deselectPiece();
-            }
-        }
-    }, 150);
-    
     // Сохраняем данные о потенциально перетаскиваемой шашке
     draggedPieceData = {
         element: originalPieceElement,
@@ -1223,20 +1214,62 @@ function handleTouchStart(event) {
         color: pieceData.color
     };
 
-    // Если мы начинаем перетаскивать уже выбранную шашку, нам нужно очистить подсветку ходов
-    if (isPieceAlreadySelected) {
-        // Шашка уже выбрана, но мы хотим ее перетащить
-        // Оставляем её выбранной, но очищаем подсветку ходов
-        console.log("Начинаем перетаскивание уже выбранной шашки");
-    } else {
-        // Если это новая шашка, выбираем её
-        console.log(`Выбираем шашку на ${startRow}, ${startCol}`);
-        selectPiece(originalPieceElement, startRow, startCol, pieceData.isKing);
-    }
+    // Handle click vs. drag detection using touchend instead of a timeout
+    const handleTouchEndForTap = function(endEvent) {
+        const touchEndTime = Date.now();
+        const touchDuration = touchEndTime - touchStartTime;
+        
+        // Find the specific touch that ended
+        let endTouch;
+        for (let i = 0; i < endEvent.changedTouches.length; i++) {
+            if (endEvent.changedTouches[i].identifier === touch.identifier) {
+                endTouch = endEvent.changedTouches[i];
+                break;
+            }
+        }
+        
+        if (!endTouch) {
+            return;
+        }
+        
+        // Calculate distance moved
+        const distX = Math.abs(endTouch.clientX - startX);
+        const distY = Math.abs(endTouch.clientY - startY);
+        
+        // If it was a short tap without much movement, treat as click
+        if (touchDuration < 200 && distX < 10 && distY < 10) {
+            // It was just a tap
+            if (isPieceAlreadySelected) {
+                console.log(`Отмена выбора шашки на ${startRow}, ${startCol} через тап`);
+                deselectPiece();
+            } else {
+                // If this is a new piece, select it
+                console.log(`Выбираем шашку на ${startRow}, ${startCol}`);
+                selectPiece(originalPieceElement, startRow, startCol, pieceData.isKing);
+            }
+            
+            // Clean up without starting drag operation
+            if (draggedPieceData) {
+                draggedPieceData = null;
+            }
+            
+            touchIdentifier = null;
+            
+            // Prevent default to avoid further handling
+            if (endEvent.cancelable) {
+                endEvent.preventDefault();
+            }
+        }
+        
+        // Remove this one-time handler
+        document.removeEventListener('touchend', handleTouchEndForTap);
+    };
+    
+    // Add a one-time touchend listener to detect if it's a tap
+    document.addEventListener('touchend', handleTouchEndForTap, { once: true, passive: false });
 
     // Получаем позицию для перетаскивания
     const rect = originalPieceElement.getBoundingClientRect();
-    const touch = event.touches[0];
     touchIdentifier = touch.identifier;
     initialTouchX = touch.clientX;
     initialTouchY = touch.clientY;
@@ -1250,12 +1283,8 @@ function handleTouchStart(event) {
 }
 
 function handleTouchMove(event) {
-    // Clear the tap timeout - it's a drag, not a tap - RESTORED!
-    if (this.tapTimeout) {
-        clearTimeout(this.tapTimeout);
-        this.tapTimeout = null;
-    }
-
+    // Clear any tap detection - it's definitely a drag now
+    
     if (!draggedPieceData) return; // Should have data if touch started correctly
 
     // Find the specific touch that started the drag
@@ -1263,15 +1292,12 @@ function handleTouchMove(event) {
     if (!touch) return;
 
     // Prevent scrolling
-    event.preventDefault();
+    if (event.cancelable) {
+        event.preventDefault();
+    }
 
-    // --- Check Drag Threshold ---
-    const deltaX = touch.clientX - initialTouchX;
-    const deltaY = touch.clientY - initialTouchY;
-    const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
-
-    // Only create drag element on first actual move *if not already created AND threshold met*
-    if (!isDragging && distance > DRAG_THRESHOLD) {
+    // Only create drag element on first actual move *if not already created*
+    if (!isDragging) {
         isDragging = true; // Set flag to indicate drag has started
 
         // --- Add dragging class to the original piece ---
@@ -1282,7 +1308,7 @@ function handleTouchMove(event) {
         // --- Clone Creation Code ---
         const pieceElement = draggedPieceData.element;
         const rect = pieceElement.getBoundingClientRect();
-
+        
         draggedPieceElement = pieceElement.cloneNode(true); // Clone the original piece
         draggedPieceElement.classList.remove('dragging'); // Remove from clone if already added
         draggedPieceElement.classList.add('dragging-piece'); // Add specific drag clone style
@@ -1294,7 +1320,7 @@ function handleTouchMove(event) {
         draggedPieceElement.style.opacity = '1'; // Ensure clone is fully visible
         draggedPieceElement.style.left = `${rect.left}px`; // Initial position
         draggedPieceElement.style.top = `${rect.top}px`;
-
+        
         // Add crown if king (efficiently, checks data)
         if (draggedPieceData.isKing) {
             const crown = document.createElement('div');
@@ -1311,32 +1337,31 @@ function handleTouchMove(event) {
             `;
             draggedPieceElement.appendChild(crown);
         }
-
+        
         // Slightly hide the original piece
         pieceElement.style.opacity = '0.3';
-
+        
         // Append clone to body
         document.body.appendChild(draggedPieceElement);
     }
 
-    // Only update position if dragging has officially started
-    if (!isDragging || !draggedPieceElement) return;
+    if (!draggedPieceElement) return; // Should exist now if dragging
 
     // Get board boundaries to keep piece within board visually
     const boardRect = boardElement.getBoundingClientRect();
-
+    
     // Calculate new position
     let newX = touch.clientX - initialPieceOffsetX;
     let newY = touch.clientY - initialPieceOffsetY;
-
+    
     // Get the element's dimensions
     const pieceWidth = draggedPieceElement.offsetWidth;
     const pieceHeight = draggedPieceElement.offsetHeight;
-
+    
     // Keep the piece within the board boundaries
     newX = Math.max(boardRect.left, Math.min(newX, boardRect.right - pieceWidth));
     newY = Math.max(boardRect.top, Math.min(newY, boardRect.bottom - pieceHeight));
-
+    
     // Update position using requestAnimationFrame for smoother rendering
     requestAnimationFrame(() => {
         if (draggedPieceElement) { // Check again in case it was removed
@@ -1347,54 +1372,28 @@ function handleTouchMove(event) {
 }
 
 function handleTouchEnd(event) {
-    // If it was just a tap (no drag started), keep the piece selected
-    if (this.tapTimeout) {
-        clearTimeout(this.tapTimeout);
-        this.tapTimeout = null;
-        
-        // Clean up listeners but don't deselect piece
-        document.removeEventListener('touchmove', handleTouchMove);
-        document.removeEventListener('touchend', handleTouchEnd);
-        document.removeEventListener('touchcancel', handleTouchEnd);
-        
-        // Была ли это просто легкая тап без драга?
-        if (!isDragging) {
-            // Это был просто тап, данные для драга очищаем, но выбор шашки оставляем
-            if (draggedPieceData) {
-                // Сброс данных для драга, но сохранение выбора
-                draggedPieceData = null;
-                touchIdentifier = null;
-            }
-            return;
+    // If there's no drag operation in progress, exit early
+    if (!draggedPieceData || !isDragging) {
+        // Only cleanup event listeners if we have drag data
+        if (draggedPieceData) {
+            document.removeEventListener('touchmove', handleTouchMove);
+            document.removeEventListener('touchend', handleTouchEnd);
+            document.removeEventListener('touchcancel', handleTouchEnd);
+            
+            // Clear drag data but don't affect piece selection
+            draggedPieceData = null;
+            touchIdentifier = null;
         }
-    }
-
-    if (!draggedPieceData) {
-        cleanupDragOperation(false);
-        return;
-    }
-
-    // Если это был просто тап (без драга), просто вернемся, сохраняя выбор шашки
-    if (!isDragging || !draggedPieceElement) {
-        if (draggedPieceData && draggedPieceData.element) {
-            // Возвращаем нормальный вид шашке
-            draggedPieceData.element.style.opacity = '1';
-            draggedPieceData.element.classList.remove('dragging');
-        }
-        
-        // Очищаем данные для драга
-        draggedPieceData = null;
-        touchIdentifier = null;
-        
-        // Удаляем обработчики событий
-        document.removeEventListener('touchmove', handleTouchMove);
-        document.removeEventListener('touchend', handleTouchEnd);
-        document.removeEventListener('touchcancel', handleTouchEnd);
         return;
     }
     
-    // Дальше продолжается обработка окончания перетаскивания...
+    // Prevent default behavior if possible
+    if (event.cancelable) {
+        event.preventDefault();
+    }
 
+    let moveMade = false;
+    
     // Find the specific touch that ended
     let touch;
     for (let i = 0; i < event.changedTouches.length; i++) {
@@ -1410,10 +1409,6 @@ function handleTouchEnd(event) {
         return;
     }
 
-    // Prevent default behavior
-    event.preventDefault();
-
-    let moveMade = false;
     // Get drop location
     const endX = touch.clientX;
     const endY = touch.clientY;
@@ -1436,7 +1431,7 @@ function handleTouchEnd(event) {
     const distance = Math.sqrt(Math.pow(endX - targetSquareCenterX, 2) + Math.pow(endY - targetSquareCenterY, 2));
 
     // Temporarily hide clone to find element underneath more reliably if needed
-        draggedPieceElement.style.display = 'none';
+    draggedPieceElement.style.display = 'none';
     const elementUnderMouse = document.elementFromPoint(endX, endY); // Check direct element first
     draggedPieceElement.style.display = ''; // Show again
 
@@ -1453,20 +1448,17 @@ function handleTouchEnd(event) {
     }
 
     if (targetSquare) {
-            const endRow = parseInt(targetSquare.dataset.row);
-            const endCol = parseInt(targetSquare.dataset.col);
+        const endRow = parseInt(targetSquare.dataset.row);
+        const endCol = parseInt(targetSquare.dataset.col);
             
         // Check if this target square is a valid move
-            const validMoves = calculateValidMoves(draggedPieceData.startRow, draggedPieceData.startCol, draggedPieceData.isKing);
+        const validMoves = calculateValidMoves(draggedPieceData.startRow, draggedPieceData.startCol, draggedPieceData.isKing);
         const validMoveInfo = validMoves.find(move => move.toRow === endRow && move.toCol === endCol);
 
         if (validMoveInfo) {
             // Execute the move
             movePiece(draggedPieceData.startRow, draggedPieceData.startCol, endRow, endCol, validMoveInfo);
             moveMade = true;
-            // ignoreNextClick is now handled by cleanupDragOperation
-            // ignoreNextClick = true; // Prevent click event after successful drop
-            // setTimeout(() => { ignoreNextClick = false; }, 300);
         }
     }
 
@@ -1629,88 +1621,39 @@ function handleMouseMove(event) {
     // Предотвращаем множественные обработки одного и того же события
     if (event.timeStamp === lastMouseMoveTimeStamp) return;
     lastMouseMoveTimeStamp = event.timeStamp;
-
+    
     // Очищаем таймер клика, если он есть - теперь мы точно перетаскиваем
     if (this.clickTimeout) {
         clearTimeout(this.clickTimeout);
         this.clickTimeout = null;
     }
-
+    
     // Вычисляем, насколько сместилась мышь от начального положения
     const deltaX = event.clientX - initialMouseX;
     const deltaY = event.clientY - initialMouseY;
-    const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY); // Calculate distance
-
+    
     // Если мы еще не начали перетаскивание, проверяем порог перемещения
-    if (!isMouseDragging && distance > DRAG_THRESHOLD) { // Check threshold
-        // Начинаем перетаскивание
-        isMouseDragging = true;
-
-        // --- Clone Creation Logic (moved from non-existent startDragging) ---
-        const originalPieceElement = draggedPieceData.element;
-        if (!originalPieceElement) {
-            console.error("Missing original piece element for drag start!");
-            cleanupDragOperation(false);
+    if (!isMouseDragging) {
+        // Расстояние от начальной точки
+        const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+        
+        // Если расстояние меньше порога, не начинаем перетаскивание
+        if (distance < 5) {
             return;
         }
-
-        // Add dragging class to original piece
-        originalPieceElement.classList.add('dragging');
-
-        // Clone Creation
-        const rect = originalPieceElement.getBoundingClientRect();
-        draggedPieceElement = originalPieceElement.cloneNode(true);
-        draggedPieceElement.classList.remove('dragging');
-        draggedPieceElement.classList.add('dragging-piece');
-        draggedPieceElement.style.width = `${rect.width}px`;
-        draggedPieceElement.style.height = `${rect.height}px`;
-        draggedPieceElement.style.position = 'fixed';
-        draggedPieceElement.style.pointerEvents = 'none';
-        draggedPieceElement.style.zIndex = '1000';
-        draggedPieceElement.style.opacity = '1';
-
-        // Position the clone correctly based on initial mouse down and offset
-        const initialCloneX = event.clientX - initialPieceOffsetX;
-        const initialCloneY = event.clientY - initialPieceOffsetY;
-        draggedPieceElement.style.left = `${initialCloneX}px`;
-        draggedPieceElement.style.top = `${initialCloneY}px`;
-
-
-        if (draggedPieceData.isKing) {
-            const crown = document.createElement('div');
-            crown.textContent = '👑';
-            crown.style.cssText = `
-                position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
-                font-size: ${window.innerWidth <= 600 ? '18px' : '24px'}; z-index: 2;
-                text-shadow: 0 0 5px rgba(0, 0, 0, 0.5); filter: drop-shadow(0 0 4px gold);
-            `;
-            draggedPieceElement.appendChild(crown);
-        }
-
-        originalPieceElement.style.opacity = '0.3'; // Hide original
-        document.body.appendChild(draggedPieceElement);
+        
+        // Начинаем перетаскивание
+        isMouseDragging = true;
+        startDragging(draggedPieceData.element, 
+                      draggedPieceData.startRow, 
+                      draggedPieceData.startCol, 
+                      draggedPieceData.isKing, 
+                      event.clientX, 
+                      event.clientY);
     }
-
-    // Only update position if dragging has officially started
-    if (!isMouseDragging || !draggedPieceElement) return;
-
-    // Перемещаем элемент вместе с курсором (updateDraggedPiecePosition logic)
-    const newX = event.clientX - initialPieceOffsetX;
-    const newY = event.clientY - initialPieceOffsetY;
-
-    // Keep within board bounds (optional but good practice)
-    const boardRect = boardElement.getBoundingClientRect();
-    const pieceWidth = draggedPieceElement.offsetWidth;
-    const pieceHeight = draggedPieceElement.offsetHeight;
-    const boundedX = Math.max(boardRect.left, Math.min(newX, boardRect.right - pieceWidth));
-    const boundedY = Math.max(boardRect.top, Math.min(newY, boardRect.bottom - pieceHeight));
-
-    requestAnimationFrame(() => {
-        if (draggedPieceElement) {
-            draggedPieceElement.style.left = `${boundedX}px`;
-            draggedPieceElement.style.top = `${boundedY}px`;
-        }
-    });
+    
+    // Перемещаем элемент вместе с курсором
+    updateDraggedPiecePosition(event.clientX, event.clientY);
 }
 
 function handleMouseUp(event) {

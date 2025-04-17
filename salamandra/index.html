@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Гра "Переправа"</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <h1>Переправа через річку</h1>
+
+    <div id="game-container">
+        <div id="game-board"></div>
+        <!-- Pieces will be added here by JavaScript -->
+        <div class="game-overlay"></div>
+    </div>
+
+    <button id="reset-button">Скинути гру</button>
+
+    <!-- Victory and defeat windows -->
+    <div class="victory-window" id="victory-window">
+        <h2>Ти виграв!</h2>
+        <p>Вітаємо з перемогою!</p>
+        <button id="victory-play-again">Грати знову</button>
+    </div>
+
+    <div class="victory-window defeat" id="defeat-window">
+        <h2>Ти програв!</h2>
+        <p>Спробуй ще раз!</p>
+        <button id="defeat-play-again">Грати знову</button>
+    </div>
+
+    <script src="js1.js"></script>
+
+</body>
+</html>

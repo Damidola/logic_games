@@ -17,6 +17,7 @@ document.addEventListener('DOMContentLoaded', () => {
             this.currentDifficulty = 1; // 1-Easy, 2-Medium, 3-Hard
             this.moveHistory = [];
             this.winningCells = [];
+            this.playerTurn = true; // Flag to track if it's player's turn
             
             // Initialize theme
             this.initializeTheme();
@@ -78,7 +79,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 
                 column.addEventListener('click', () => {
-                    if (!this.gameOver) {
+                    if (!this.gameOver && this.playerTurn) { // Only allow click if it's player's turn
                         const col = parseInt(column.dataset.col);
                         this.makeMove(col);
                     }
@@ -144,6 +145,7 @@ document.addEventListener('DOMContentLoaded', () => {
             this.board = this.createEmptyBoard();
             this.gameOver = false;
             this.moveHistory = [];
+            this.playerTurn = true; // Reset to player's turn
             this.gameOverElement.classList.remove('active');
             this.updateBoard();
         }
@@ -216,7 +218,10 @@ document.addEventListener('DOMContentLoaded', () => {
         
         // Make player move
         makeMove(col) {
-            if (!this.isValidMove(col) || this.gameOver) return false;
+            if (!this.isValidMove(col) || this.gameOver || !this.playerTurn) return false;
+            
+            // Lock player input until AI moves
+            this.playerTurn = false;
             
             const row = this.getFirstEmptyRow(col);
             this.board[row][col] = this.PLAYER;
@@ -266,6 +271,9 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             
             this.updateBoard();
+            
+            // After undoing both moves, it's the player's turn again
+            this.playerTurn = true;
         }
         
         // Evaluate board state for minimax
@@ -462,6 +470,13 @@ document.addEventListener('DOMContentLoaded', () => {
                     this.gameOver = true;
                     this.gameOverElement.classList.add('active');
                 }
+                // If game is not over, unlock player input for next turn
+                else {
+                    this.playerTurn = true;
+                }
+            } else {
+                // If AI couldn't make a valid move, unlock player input
+                this.playerTurn = true;
             }
         }
     }

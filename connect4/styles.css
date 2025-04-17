@@ -9,6 +9,14 @@
     --card-bg: #fff;
     --win-highlight: #ffd700;
 }
+
+/* Prevent blue highlight on touch */
+* {
+    -webkit-tap-highlight-color: transparent;
+    -webkit-touch-callout: none;
+    user-select: none;
+}
+
 body.dark-theme {
     --bg-color: #12151D;
     --text-color: #FFFFFF;
@@ -84,6 +92,9 @@ h1 {
     flex-direction: column-reverse;
     cursor: pointer;
     gap: 12px;
+    -webkit-tap-highlight-color: transparent;
+    user-select: none;
+    touch-action: manipulation;
 }
 
 .cell {

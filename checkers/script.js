@@ -1174,16 +1174,8 @@ function handleTouchStart(event) {
     const squareElement = originalPieceElement.closest('.square');
     if (!squareElement) return;
 
-    // Store the start time and position to detect if it's a tap or drag
-    const touchStartTime = Date.now();
-    const touch = event.touches[0];
-    const startX = touch.clientX;
-    const startY = touch.clientY;
-
-    // Prevents scrolling but allows tap detection
-    if (event.cancelable) {
-        event.preventDefault();
-    }
+    // Предотвращаем стандартные действия прокрутки
+    event.preventDefault();
 
     const startRow = parseInt(squareElement.dataset.row);
     const startCol = parseInt(squareElement.dataset.col);
@@ -1205,6 +1197,20 @@ function handleTouchStart(event) {
         return; // Не выбираем и не перетаскиваем шашку без ходов
     }
 
+    // Устанавливаем таймер, чтобы отличить тап от начала перетаскивания
+    this.tapTimeout = setTimeout(() => {
+        // Если таймер сработал, это был просто тап
+        this.tapTimeout = null;
+        
+        if (!isDragging) {
+            // Если была просто тап на уже выбранную шашку, отменяем выбор
+            if (isPieceAlreadySelected) {
+                console.log(`Отмена выбора шашки на ${startRow}, ${startCol} через тап`);
+                deselectPiece();
+            }
+        }
+    }, 150);
+    
     // Сохраняем данные о потенциально перетаскиваемой шашке
     draggedPieceData = {
         element: originalPieceElement,
@@ -1214,62 +1220,20 @@ function handleTouchStart(event) {
         color: pieceData.color
     };
 
-    // Handle click vs. drag detection using touchend instead of a timeout
-    const handleTouchEndForTap = function(endEvent) {
-        const touchEndTime = Date.now();
-        const touchDuration = touchEndTime - touchStartTime;
-        
-        // Find the specific touch that ended
-        let endTouch;
-        for (let i = 0; i < endEvent.changedTouches.length; i++) {
-            if (endEvent.changedTouches[i].identifier === touch.identifier) {
-                endTouch = endEvent.changedTouches[i];
-                break;
-            }
-        }
-        
-        if (!endTouch) {
-            return;
-        }
-        
-        // Calculate distance moved
-        const distX = Math.abs(endTouch.clientX - startX);
-        const distY = Math.abs(endTouch.clientY - startY);
-        
-        // If it was a short tap without much movement, treat as click
-        if (touchDuration < 200 && distX < 10 && distY < 10) {
-            // It was just a tap
-            if (isPieceAlreadySelected) {
-                console.log(`Отмена выбора шашки на ${startRow}, ${startCol} через тап`);
-                deselectPiece();
-            } else {
-                // If this is a new piece, select it
-                console.log(`Выбираем шашку на ${startRow}, ${startCol}`);
-                selectPiece(originalPieceElement, startRow, startCol, pieceData.isKing);
-            }
-            
-            // Clean up without starting drag operation
-            if (draggedPieceData) {
-                draggedPieceData = null;
-            }
-            
-            touchIdentifier = null;
-            
-            // Prevent default to avoid further handling
-            if (endEvent.cancelable) {
-                endEvent.preventDefault();
-            }
-        }
-        
-        // Remove this one-time handler
-        document.removeEventListener('touchend', handleTouchEndForTap);
-    };
-    
-    // Add a one-time touchend listener to detect if it's a tap
-    document.addEventListener('touchend', handleTouchEndForTap, { once: true, passive: false });
+    // Если мы начинаем перетаскивать уже выбранную шашку, нам нужно очистить подсветку ходов
+    if (isPieceAlreadySelected) {
+        // Шашка уже выбрана, но мы хотим ее перетащить
+        // Оставляем её выбранной, но очищаем подсветку ходов
+        console.log("Начинаем перетаскивание уже выбранной шашки");
+    } else {
+        // Если это новая шашка, выбираем её
+        console.log(`Выбираем шашку на ${startRow}, ${startCol}`);
+        selectPiece(originalPieceElement, startRow, startCol, pieceData.isKing);
+    }
 
     // Получаем позицию для перетаскивания
     const rect = originalPieceElement.getBoundingClientRect();
+    const touch = event.touches[0];
     touchIdentifier = touch.identifier;
     initialTouchX = touch.clientX;
     initialTouchY = touch.clientY;
@@ -1283,8 +1247,12 @@ function handleTouchStart(event) {
 }
 
 function handleTouchMove(event) {
-    // Clear any tap detection - it's definitely a drag now
-    
+    // Clear the tap timeout - it's a drag, not a tap - RESTORED!
+    if (this.tapTimeout) {
+        clearTimeout(this.tapTimeout);
+        this.tapTimeout = null;
+    }
+
     if (!draggedPieceData) return; // Should have data if touch started correctly
 
     // Find the specific touch that started the drag
@@ -1292,9 +1260,7 @@ function handleTouchMove(event) {
     if (!touch) return;
 
     // Prevent scrolling
-    if (event.cancelable) {
-        event.preventDefault();
-    }
+    event.preventDefault();
 
     // Only create drag element on first actual move *if not already created*
     if (!isDragging) {
@@ -1372,28 +1338,54 @@ function handleTouchMove(event) {
 }
 
 function handleTouchEnd(event) {
-    // If there's no drag operation in progress, exit early
-    if (!draggedPieceData || !isDragging) {
-        // Only cleanup event listeners if we have drag data
-        if (draggedPieceData) {
-            document.removeEventListener('touchmove', handleTouchMove);
-            document.removeEventListener('touchend', handleTouchEnd);
-            document.removeEventListener('touchcancel', handleTouchEnd);
-            
-            // Clear drag data but don't affect piece selection
-            draggedPieceData = null;
-            touchIdentifier = null;
+    // If it was just a tap (no drag started), keep the piece selected
+    if (this.tapTimeout) {
+        clearTimeout(this.tapTimeout);
+        this.tapTimeout = null;
+        
+        // Clean up listeners but don't deselect piece
+        document.removeEventListener('touchmove', handleTouchMove);
+        document.removeEventListener('touchend', handleTouchEnd);
+        document.removeEventListener('touchcancel', handleTouchEnd);
+        
+        // Была ли это просто легкая тап без драга?
+        if (!isDragging) {
+            // Это был просто тап, данные для драга очищаем, но выбор шашки оставляем
+            if (draggedPieceData) {
+                // Сброс данных для драга, но сохранение выбора
+                draggedPieceData = null;
+                touchIdentifier = null;
+            }
+            return;
         }
+    }
+
+    if (!draggedPieceData) {
+        cleanupDragOperation(false);
+        return;
+    }
+
+    // Если это был просто тап (без драга), просто вернемся, сохраняя выбор шашки
+    if (!isDragging || !draggedPieceElement) {
+        if (draggedPieceData && draggedPieceData.element) {
+            // Возвращаем нормальный вид шашке
+            draggedPieceData.element.style.opacity = '1';
+            draggedPieceData.element.classList.remove('dragging');
+        }
+        
+        // Очищаем данные для драга
+        draggedPieceData = null;
+        touchIdentifier = null;
+        
+        // Удаляем обработчики событий
+        document.removeEventListener('touchmove', handleTouchMove);
+        document.removeEventListener('touchend', handleTouchEnd);
+        document.removeEventListener('touchcancel', handleTouchEnd);
         return;
     }
     
-    // Prevent default behavior if possible
-    if (event.cancelable) {
-        event.preventDefault();
-    }
+    // Дальше продолжается обработка окончания перетаскивания...
 
-    let moveMade = false;
-    
     // Find the specific touch that ended
     let touch;
     for (let i = 0; i < event.changedTouches.length; i++) {
@@ -1409,6 +1401,10 @@ function handleTouchEnd(event) {
         return;
     }
 
+    // Prevent default behavior
+    event.preventDefault();
+
+    let moveMade = false;
     // Get drop location
     const endX = touch.clientX;
     const endY = touch.clientY;
@@ -1431,7 +1427,7 @@ function handleTouchEnd(event) {
     const distance = Math.sqrt(Math.pow(endX - targetSquareCenterX, 2) + Math.pow(endY - targetSquareCenterY, 2));
 
     // Temporarily hide clone to find element underneath more reliably if needed
-    draggedPieceElement.style.display = 'none';
+        draggedPieceElement.style.display = 'none';
     const elementUnderMouse = document.elementFromPoint(endX, endY); // Check direct element first
     draggedPieceElement.style.display = ''; // Show again
 
@@ -1448,17 +1444,20 @@ function handleTouchEnd(event) {
     }
 
     if (targetSquare) {
-        const endRow = parseInt(targetSquare.dataset.row);
-        const endCol = parseInt(targetSquare.dataset.col);
+            const endRow = parseInt(targetSquare.dataset.row);
+            const endCol = parseInt(targetSquare.dataset.col);
             
         // Check if this target square is a valid move
-        const validMoves = calculateValidMoves(draggedPieceData.startRow, draggedPieceData.startCol, draggedPieceData.isKing);
+            const validMoves = calculateValidMoves(draggedPieceData.startRow, draggedPieceData.startCol, draggedPieceData.isKing);
         const validMoveInfo = validMoves.find(move => move.toRow === endRow && move.toCol === endCol);
 
         if (validMoveInfo) {
             // Execute the move
             movePiece(draggedPieceData.startRow, draggedPieceData.startCol, endRow, endCol, validMoveInfo);
             moveMade = true;
+            // ignoreNextClick is now handled by cleanupDragOperation
+            // ignoreNextClick = true; // Prevent click event after successful drop
+            // setTimeout(() => { ignoreNextClick = false; }, 300);
         }
     }
 

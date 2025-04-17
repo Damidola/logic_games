@@ -4,7 +4,7 @@ html, body {
     height: 100%; 
     width: 100%;
     position: fixed; /* For some browsers */
-    touch-action: manipulation; /* Allow pinch zoom but prevent double-tap */
+    touch-action: none; /* Disable browser touch actions globally */
 }
 
 body {
@@ -120,8 +120,6 @@ button:disabled {
     z-index: 1;
     transition: transform 0.1s ease;
     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.5);
-    touch-action: manipulation; /* Prevent default touch behaviors on pieces */
-    -webkit-tap-highlight-color: transparent; /* Remove tap highlight on mobile */
 }
 
 .white-piece {
@@ -218,8 +216,6 @@ button:disabled {
     will-change: left, top;
     touch-action: none;
     filter: brightness(1.2);
-    -webkit-user-select: none;
-    user-select: none;
 }
 
 /* Style to hide the original piece in the square while dragging */

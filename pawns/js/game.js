@@ -57,12 +57,12 @@ const ADVANCEMENT_BONUS = [0, 1, 1, 2, 3, 5, 8, 0]; // Bonus per rank advanced (
 const PROMOTION_VALUE = 90; // Big bonus for reaching the end
 const CAPTURE_BONUS = 5; // Bonus per captured piece advantage
 const WIN_SCORE = 10000;
-const MAX_DEPTH_EXPERT = 5; // Depth for Expert AI (новый максимальный уровень)
-const MAX_DEPTH_HARD = 4; // Depth for Hard AI
-const MAX_DEPTH_ADVANCED = 3; // Depth for Advanced AI (новый уровень между Medium and Hard)
+const MAX_DEPTH_EXPERT = 7; // Depth for Expert AI (увеличено с 5 до 7)
+const MAX_DEPTH_HARD = 5; // Depth for Hard AI (увеличено с 4 до 5)
+const MAX_DEPTH_ADVANCED = 3; // Depth for Advanced AI
 const MAX_DEPTH_MEDIUM = 2; // Depth for Medium AI
 const MAX_DEPTH_EASY = 1; // Depth for Easy AI
-const MAX_DEPTH_VERY_EASY = 0; // Depth for Very Easy AI (полностью случайные ходы)
+const MAX_DEPTH_VERY_EASY = 0; // Depth for Very Easy AI
 const MAX_DEPTH_COMPLETELY_RANDOM = 0; // Depth for Completely Random AI (обезьяна)
 
 // --- Game State Variables ---
@@ -84,6 +84,7 @@ let gameOver = false; // Boolean flag
 let aiThinking = false; // Boolean flag to prevent player interaction
 let hintHighlightTimeout = null; // Timeout ID for hint highlight
 let catObjectURL = null; // For releasing cat image blob
+let hintHighlightedSquares = null; // Store the squares that are highlighted by hint
 
 // Interaction State (Touch & Click)
 const touchState = {
@@ -106,7 +107,20 @@ function initGame(keepOpponent = false, mode = 'pvai') {
     enPassantTargetSquare = null;
     capturedCounts = { w: 0, b: 0 };
     isEnPassantEnabled = true; // Default EP setting
+    
+    // Clear any hint highlights
+    if (hintHighlightedSquares) {
+        const fromHintSq = getSquareElement(hintHighlightedSquares.from.row, hintHighlightedSquares.from.col);
+        const toHintSq = getSquareElement(hintHighlightedSquares.to.row, hintHighlightedSquares.to.col);
+        
+        if (fromHintSq) fromHintSq.classList.remove('hint-highlight');
+        if (toHintSq) toHintSq.classList.remove('hint-highlight');
+    }
+    
     if (hintHighlightTimeout) clearTimeout(hintHighlightTimeout);
+    hintHighlightTimeout = null;
+    hintHighlightedSquares = null;
+    
     cleanupInteractionState(false);
 
     gameMode = 'pvai'; // Всегда режим игры с AI
@@ -287,15 +301,24 @@ function requestHint() {
             const toSq = getSquareElement(bestMove.to.row, bestMove.to.col);
 
             if (fromSq && toSq) {
+                // Clear any previous hint timeout
+                if (hintHighlightTimeout) {
+                    clearTimeout(hintHighlightTimeout);
+                    hintHighlightTimeout = null;
+                }
+                
+                // Apply the hint highlights
                 fromSq.classList.add('hint-highlight');
                 toSq.classList.add('hint-highlight');
-                if (hintHighlightTimeout) clearTimeout(hintHighlightTimeout);
-                hintHighlightTimeout = setTimeout(() => {
-                    fromSq?.classList.remove('hint-highlight'); // Use optional chaining
-                    toSq?.classList.remove('hint-highlight');
-                    hintHighlightTimeout = null;
-                    applyHighlights(); // Reapply any other highlights (like last move)
-                }, HINT_HIGHLIGHT_DURATION_MS);
+                
+                // Store the highlighted squares to clear them later
+                hintHighlightedSquares = { 
+                    from: { row: bestMove.from.row, col: bestMove.from.col },
+                    to: { row: bestMove.to.row, col: bestMove.to.col }
+                };
+                
+                // We don't set a timeout anymore - the hint will stay until a move is made
+                console.log("Hint displayed - will remain until a move is made");
             } else {
                 console.error("Hint squares not found for move:", bestMove);
                 if (hintsRemaining !== Infinity) hintsRemaining++; // Refund hint
@@ -385,6 +408,22 @@ function resetCapturedPawnsCounter() {
 
 function makeMove(fromRow, fromCol, toRow, toCol, isEnPassant = false, isCapture = false) {
     if (gameOver || (gameMode === 'pvai' && aiThinking)) return;
+
+    // Clear hint highlights if they exist
+    if (hintHighlightedSquares) {
+        const fromHintSq = getSquareElement(hintHighlightedSquares.from.row, hintHighlightedSquares.from.col);
+        const toHintSq = getSquareElement(hintHighlightedSquares.to.row, hintHighlightedSquares.to.col);
+        
+        if (fromHintSq) fromHintSq.classList.remove('hint-highlight');
+        if (toHintSq) toHintSq.classList.remove('hint-highlight');
+        
+        hintHighlightedSquares = null; // Reset the stored hint
+        
+        if (hintHighlightTimeout) {
+            clearTimeout(hintHighlightTimeout);
+            hintHighlightTimeout = null;
+        }
+    }
 
     const pieceColor = boardState[fromRow]?.[fromCol];
     if (!pieceColor) {

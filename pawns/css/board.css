@@ -151,7 +151,8 @@
 .last-move-from, .last-move-to { background-color: var(--highlight-last-move) !important; z-index: 2; }
 .hint-highlight {
     box-shadow: 0 0 10px 4px var(--highlight-hint);
-    border-radius: 10%; z-index: 5; pointer-events: none;
+    border-radius: 10%; 
+    z-index: 5;
 }
 
 /* Прозрачность оригинальной пешки при перетаскивании */

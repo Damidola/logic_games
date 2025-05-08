@@ -62,7 +62,7 @@ function handleTouchStart(event) {
 
     // Check if it's the current player's piece and turn
     if (!pieceColor || pieceColor !== currentPlayer) return;
-     if (gameMode === 'pvai' && currentPlayer !== playerColor) return; // Ignore if not human player's turn in PvAI
+    if (gameMode === 'pvai' && currentPlayer !== playerColor) return; // Ignore if not human player's turn in PvAI
 
     // --- Improved Touch Handling --- 
     // Don't prevent default immediately. Only prevent if a drag starts.

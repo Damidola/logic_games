@@ -133,11 +133,15 @@ const winSound = getEl('win-sound');
 // --- Highlight Management ---
 function clearVisualState() {
     // Efficiently query all squares that might have highlights
-    const highlightedSquares = chessboardEl.querySelectorAll('.valid-move, .move-capture, .touch-drag-target-valid, .selected-piece-origin, .last-move-from, .last-move-to, .hint-highlight');
+    const highlightedSquares = chessboardEl.querySelectorAll('.valid-move, .move-capture, .touch-drag-target-valid, .selected-piece-origin, .last-move-from, .last-move-to');
     highlightedSquares.forEach(el => el.classList.remove(
         'valid-move', 'move-capture', 'touch-drag-target-valid',
-        'selected-piece-origin', 'last-move-from', 'last-move-to', 'hint-highlight'
+        'selected-piece-origin', 'last-move-from', 'last-move-to'
     ));
+    
+    // Do NOT clear hint highlights here - they should persist until a move is made
+    // The hint highlights are now handled separately in makeMove and initGame
+    
     // Ensure original dragged piece becomes visible if drag ends without move
     const hiddenOriginal = chessboardEl.querySelector('.piece.touch-hidden-original');
     hiddenOriginal?.classList.remove('touch-hidden-original');

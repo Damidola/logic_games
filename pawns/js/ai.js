@@ -113,8 +113,12 @@ function getAllMovesForAI(color, currentBoard, currentEpTarget) {
 function veryEasyAI(moves) {
     if (!moves || moves.length === 0) return null;
     
+    // Фильтруем ВСЕ захваты - хомяк никогда не бьёт пешки
+    const nonCaptureMoves = moves.filter(m => !m.isCapture);
+    if (nonCaptureMoves.length === 0) return null; // Если нет безопасных ходов
+    
     // Хомяк любит двигаться по краям доски (первая и последняя колонка)
-    const edgeMoves = moves.filter(m => m.to.col === 0 || m.to.col === 7);
+    const edgeMoves = nonCaptureMoves.filter(m => m.to.col === 0 || m.to.col === 7);
     
     // С вероятностью 40% хомяк выбирает ход по краю, если такие есть
     if (edgeMoves.length > 0 && Math.random() < 0.4) {
@@ -123,22 +127,15 @@ function veryEasyAI(moves) {
     }
     
     // С вероятностью 30% хомяк может сделать случайный ход, даже если есть выигрышный
-    const winningMoves = moves.filter(m => m.reachesEnd);
+    const winningMoves = nonCaptureMoves.filter(m => m.reachesEnd);
     if (winningMoves.length > 0 && Math.random() < 0.7) {
         console.log("Хомяк нашел выигрышный ход!");
         return winningMoves[Math.floor(Math.random() * winningMoves.length)];
     }
     
-    // С вероятностью 20% хомяк делает взятие, если возможно
-    const captureMoves = moves.filter(m => m.isCapture);
-    if (captureMoves.length > 0 && Math.random() < 0.2) {
-        console.log("Хомяк решил съесть пешку!");
-        return captureMoves[Math.floor(Math.random() * captureMoves.length)];
-    }
-    
-    // Иначе случайный ход
-    console.log("Хомяк бегает случайно!");
-    return moves[Math.floor(Math.random() * moves.length)];
+    // Иначе случайный безопасный ход
+    console.log("Хомяк бегает случайно (безопасно)!");
+    return nonCaptureMoves[Math.floor(Math.random() * nonCaptureMoves.length)];
 }
 
 // Полностью рандомный AI для обезьяны

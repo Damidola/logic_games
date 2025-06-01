@@ -106,7 +106,7 @@ function initGame(keepOpponent = false, mode = 'pvai') {
     lastMove = null;
     enPassantTargetSquare = null;
     capturedCounts = { w: 0, b: 0 };
-    isEnPassantEnabled = true; // Default EP setting
+    isEnPassantEnabled = false; // Отключить взятие на проходе по умолчанию
     
     // Clear any hint highlights
     if (hintHighlightedSquares) {
@@ -261,14 +261,31 @@ function checkGameOver() {
 }
 
 function requestHint() {
-    if (!canRequestHint()) { console.log("Hint not available."); return; }
+    // Clear any existing hint before showing a new one
+    if (hintHighlightedSquares) {
+        const fromHintSq = getSquareElement(hintHighlightedSquares.from.row, hintHighlightedSquares.from.col);
+        const toHintSq = getSquareElement(hintHighlightedSquares.to.row, hintHighlightedSquares.to.col);
+        if (fromHintSq) fromHintSq.classList.remove('hint-highlight');
+        if (toHintSq) toHintSq.classList.remove('hint-highlight');
+        hintHighlightedSquares = null;
+        if (hintHighlightTimeout) {
+            clearTimeout(hintHighlightTimeout);
+            hintHighlightTimeout = null;
+        }
+    }
+
+    if (!canRequestHint()) { 
+        console.log("Hint not available."); 
+        return; 
+    }
 
     if (hintsRemaining !== Infinity && hintsRemaining > 0) {
         hintsRemaining--;
         console.log(`Hint used. Remaining: ${hintsRemaining}`);
-     } else if (hintsRemaining === 0) {
-          console.log("No hints remaining."); return; // Should be caught by canRequestHint, but double-check
-     }
+    } else if (hintsRemaining === 0) {
+        console.log("No hints remaining."); 
+        return; 
+    }
     updateButtonStates();
 
     const boardCopy = JSON.parse(JSON.stringify(boardState));
@@ -276,24 +293,8 @@ function requestHint() {
     const playerMoves = getAllMovesForAI(currentPlayer, boardCopy, epCopy);
 
     if (playerMoves.length > 0) {
-        // Используем AI в зависимости от текущей сложности игры для подсказки
-        let bestMove;
-        switch (aiDifficulty) {
-            case 'very_easy':
-            case 'easy':
-                bestMove = mediumAI(playerMoves, boardCopy, currentPlayer, epCopy); // Для простых уровней используем медиум
-                break;
-            case 'medium':
-                bestMove = advancedAI(playerMoves, boardCopy, currentPlayer, epCopy);
-                break;
-            case 'advanced':
-            case 'hard':
-            case 'expert':
-                bestMove = expertAI(playerMoves, boardCopy, currentPlayer, epCopy);
-                break;
-            default:
-                bestMove = mediumAI(playerMoves, boardCopy, currentPlayer, epCopy);
-        }
+        // Используем более быструю AI для подсказки (advanced вместо expert)
+        let bestMove = advancedAI(playerMoves, boardCopy, currentPlayer, epCopy);
 
         if (bestMove) {
             clearVisualState(); renderBoard(); // Clean slate before showing hint
@@ -301,12 +302,6 @@ function requestHint() {
             const toSq = getSquareElement(bestMove.to.row, bestMove.to.col);
 
             if (fromSq && toSq) {
-                // Clear any previous hint timeout
-                if (hintHighlightTimeout) {
-                    clearTimeout(hintHighlightTimeout);
-                    hintHighlightTimeout = null;
-                }
-                
                 // Apply the hint highlights
                 fromSq.classList.add('hint-highlight');
                 toSq.classList.add('hint-highlight');
@@ -317,22 +312,21 @@ function requestHint() {
                     to: { row: bestMove.to.row, col: bestMove.to.col }
                 };
                 
-                // We don't set a timeout anymore - the hint will stay until a move is made
                 console.log("Hint displayed - will remain until a move is made");
             } else {
                 console.error("Hint squares not found for move:", bestMove);
                 if (hintsRemaining !== Infinity) hintsRemaining++; // Refund hint
-                updateButtonStates();
             }
         } else {
             console.warn("Hint requested, but AI couldn't determine a best move.");
-            if (hintsRemaining !== Infinity) hintsRemaining++; updateButtonStates();
+            if (hintsRemaining !== Infinity) hintsRemaining++; 
         }
     } else {
         console.warn("Hint requested, but no valid moves available for player.");
-         if (hintsRemaining !== Infinity && hintsRemaining >=0) hintsRemaining++; // Refund hint if no moves possible
-        updateButtonStates();
+        if (hintsRemaining !== Infinity && hintsRemaining >=0) hintsRemaining++; // Refund hint if no moves possible
     }
+    // Разблокируем кнопку сразу после показа подсказки
+    setTimeout(() => updateButtonStates(), 0);
 }
 
 // --- Move Logic Functions (from moves.js) ---
